@@ -1,0 +1,4 @@
+id,schema,question,gold_sql
+1,"CREATE TABLE Customers (id INT, name VARCHAR(100), email VARCHAR(100)); CREATE TABLE Orders (id INT, customer_id INT, total DECIMAL(10,2));","Find all customers who have placed orders","SELECT DISTINCT c.name FROM Customers c JOIN Orders o ON c.id = o.customer_id"
+2,"CREATE TABLE Products (id INT, name VARCHAR(100), price DECIMAL(10,2));","List all products sorted by price","SELECT * FROM Products ORDER BY price ASC"
+

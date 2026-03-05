@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# Conda
+.conda/
+
+# Models (large files)
+models/
+*.bin
+*.safetensors
+*.pt
+*.pth
+
+# Data (may contain sensitive information)
+data/**/*.csv
+data/**/*.jsonl
+data/**/*.json
+!data/**/.gitkeep
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Results
+results_raw/
+*.log
+

@@ -1,0 +1,4 @@
+id,text,task_type,gold_extraction
+1,"The university has students, professors, and courses. Each student has a student ID, name, and email. Professors have a professor ID, name, and department. Courses have a course code, title, and credits.","entity","Student: student_id, name, email\nProfessor: professor_id, name, department\nCourse: course_code, title, credits"
+2,"To enroll in a course, first check if the course has available seats. Then verify the student meets prerequisites. Next, add the student to the course roster and update the seat count. Finally, send a confirmation email.","process","Step1: Check course availability\nStep2: Verify prerequisites\nStep3: Add student to roster\nStep4: Update seat count\nStep5: Send confirmation email"
+
