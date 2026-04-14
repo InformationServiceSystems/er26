@@ -25,6 +25,11 @@ data/**/*.jsonl
 data/**/*.json
 !data/**/.gitkeep
 
+# Allow pilot task files and ontology (benchmark artifacts)
+!data/pilot/*.csv
+!data/pilot/*.txt
+!data/ontology/*.ttl
+
 # Jupyter
 .ipynb_checkpoints/
 *.ipynb

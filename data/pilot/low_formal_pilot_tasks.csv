@@ -1,0 +1,50 @@
+id,category,question,gold_answer
+LF-1,entity_identification,"Read the following requirements document and identify all candidate entities that a data modeler should consider for a conceptual schema. For each entity, state the name and briefly justify why it qualifies as an entity.
+
+---
+The order management process centers on customers, their orders, and the products they purchase. Each customer is identified by a short company code and a company name. A customer may place multiple orders over time, though some customers may not have placed any orders yet. Every order is associated with exactly one customer, and each order is recorded with the date it was placed. An order is made up of one or more individual line items, each of which specifies a particular product along with the quantity requested and the agreed-upon unit price for that item. A single order must always contain at least one line item; an order with no items would not be meaningful. Different line items within the same order may refer to different products, and the same product may appear across many different orders placed by various customers.
+
+Products in the catalog are tracked by name and may be flagged as discontinued when they are no longer offered for sale. A discontinued product should not be added to any new order, although historical orders that included the product before it was discontinued remain valid and unchanged. The business needs visibility into which products are active and which have been retired, so that staff processing new orders can avoid selecting items that are no longer available. Overall, the system should ensure that every order is tied to a known customer, that each line item points to a recognized product, and that the quantities and prices recorded on each line item are sensible and complete.
+---","Four candidate entities should be identified:
+
+1. Customer — qualifies as an entity because it has a unique identifier (company code), its own descriptive attribute (company name), and participates independently in relationships with orders. The text says 'each customer is identified by a short company code.'
+
+2. Order — qualifies because it has an identifying attribute (implied order identifier), its own attribute (order date), and is associated with a customer and composed of line items. The text describes it as a distinct business object that is 'recorded with the date it was placed.'
+
+3. OrderLine (or Line Item) — qualifies because each line item has its own attributes (quantity, unit price), is described as a distinguishable component of an order, and participates in a relationship with a product. The text calls them 'individual line items,' indicating they are discrete trackable objects.
+
+4. Product — qualifies because it has its own attributes (name, discontinued flag), exists independently of any specific order, and is referenced by line items. The text describes products as belonging to a 'catalog' that is 'tracked by name.'
+
+Note: 'Catalog' might be mentioned as a candidate by some analysts, but the text treats it as an implicit collection rather than a first-class entity with its own attributes or identifier."
+LF-2,relationship_identification,"Using the same requirements document as in LF-1, identify the relationships between the entities and specify the cardinality of each relationship. Express cardinalities using the format 1:N, 1:1, or M:N.","Three relationships can be identified:
+
+1. Places (Customer to Order) — 1:N. The text states 'a customer may place multiple orders' and 'every order is associated with exactly one customer.' One customer maps to many orders; each order maps to exactly one customer.
+
+2. Contains (Order to OrderLine) — 1:N. The text states 'an order is made up of one or more individual line items,' establishing that one order contains many line items, and each line item belongs to exactly one order (implied by the compositional language 'made up of').
+
+3. References (OrderLine to Product) — N:1 (equivalently, the Product-to-OrderLine direction is 1:N). The text states each line item 'specifies a particular product' (one product per line item) and 'the same product may appear across many different orders' (one product, many line items). This is not M:N because each individual line item refers to exactly one product; the many-to-many appearance arises only at the Order-to-Product level when mediated through OrderLine."
+LF-3,implicit_cardinality,"Consider the sentence: 'A customer may place multiple orders over time, though some customers may not have placed any orders yet.' What cardinality and participation constraints does this single sentence imply for the relationship between Customer and Order? Explain your reasoning.","This sentence implies the following constraints:
+
+Cardinality: 1:N from Customer to Order. The word 'multiple' indicates that one customer can be associated with more than one order.
+
+Participation of Customer: Partial. The clause 'some customers may not have placed any orders yet' explicitly states that there exist customers with zero associated orders. Therefore, not every customer must participate in the relationship — participation is optional (partial).
+
+Participation of Order: The sentence does not directly address whether every order must have a customer, so participation on the Order side cannot be fully determined from this sentence alone. However, other sentences in the document ('every order is associated with exactly one customer') establish total participation of Order.
+
+The word 'may' is significant: it signals optionality on the Customer side, distinguishing partial from total participation. The phrase 'over time' suggests a temporal dimension but does not affect the structural cardinality."
+LF-4,ambiguity_flagging,"The requirements document states: 'A discontinued product should not be added to any new order.' Analyze the modeling implications of the word 'should' in this sentence. Is this a hard constraint or a soft guideline? What questions would you ask the business stakeholder to resolve the ambiguity, and what are the different modeling consequences of each interpretation?","The word 'should' is ambiguous between a hard constraint (must not) and a soft guideline (preferably not, but exceptions are possible). This distinction has significant modeling consequences:
+
+Interpretation 1 — Hard constraint ('must not'): If no discontinued product may ever appear on a new order, this becomes an integrity constraint in the conceptual model. It would be modeled as a pre-condition on the creation of an OrderLine: before inserting a new line item, the system checks the discontinued flag of the referenced product and rejects the operation if the flag is true. In an EER model, this would appear as a constraint annotation. In a formal ontology, it could be expressed as a class restriction or SWRL rule. The enforcement is automatic and exception-free.
+
+Interpretation 2 — Soft guideline ('should not, but may'): If business circumstances sometimes require placing an order for a discontinued product (for example, fulfilling a contractual obligation or clearing remaining stock), then this is a business rule with override capability. The modeling consequence is different: instead of a hard rejection, the system would issue a warning and require explicit authorization or a documented reason for the override. This might introduce additional attributes (override reason, authorized-by) on the OrderLine or Order.
+
+Questions for the stakeholder: (1) Has there ever been a situation where a discontinued product needed to be ordered? (2) If so, who has the authority to approve such an exception? (3) Should the system prevent the action entirely, or warn and allow override? (4) Does 'new order' include amendments to existing orders, or only entirely new orders?
+
+The difference between 'should' and 'must' in requirements language is a well-known source of specification defects. IEEE 830 and RFC 2119 both distinguish these terms precisely. A modeler should flag this to the stakeholder and obtain a definitive ruling before committing to either interpretation."
+LF-5,constraint_elicitation,"Based on the requirements document, propose one integrity constraint that is not explicitly stated but can be reasonably inferred from the business context. State the constraint in plain English, justify why it is necessary, and describe how violating it would cause a business problem.","Proposed constraint: The unit price recorded on an order line must be greater than zero.
+
+Justification: The requirements document states that each line item specifies 'the agreed-upon unit price for that item' and that 'quantities and prices recorded on each line item are sensible and complete.' While the document does not explicitly say the unit price must be positive, a zero or negative unit price would mean the company is giving away or paying customers to take products, which contradicts the commercial purpose of the order management process. A zero-price line item would also distort revenue calculations and inventory valuation.
+
+Business problem if violated: If an order line is recorded with a unit price of zero, the company ships product without generating revenue for that item. This creates accounting discrepancies — the inventory is reduced but the corresponding revenue entry is absent or zero. Over time, undetected zero-price line items could lead to material misstatements in financial reports. A negative unit price is even more problematic, as it would imply the company owes the customer money for accepting the product, which might be exploited through data entry errors or fraud.
+
+Alternative plausible constraints a modeler might propose include: (1) An order date cannot be in the future. (2) A customer's company code must be exactly five characters. (3) The same product cannot appear on two different line items within the same order (quantities should be consolidated). Each of these is inferable from context and defensible, though the positive-unit-price constraint is the most broadly impactful."

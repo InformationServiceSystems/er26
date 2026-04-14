@@ -1,0 +1,49 @@
+id,difficulty,question,gold_sparql
+HF-1,simple,"List the names of all products that are not discontinued.","PREFIX nw: <http://example.org/northwind#>
+SELECT ?name
+WHERE {
+  ?p a nw:Product .
+  ?p nw:productName ?name .
+  ?p nw:discontinued ""false""^^xsd:boolean .
+}"
+HF-2,simple,"How many orders has customer ALFKI placed?","PREFIX nw: <http://example.org/northwind#>
+SELECT (COUNT(?o) AS ?orderCount)
+WHERE {
+  ?c a nw:Customer .
+  ?c nw:customerID ""ALFKI"" .
+  ?o nw:placedBy ?c .
+}"
+HF-3,medium,"For each order placed by Berglunds snabbköp, list the product names on that order.","PREFIX nw: <http://example.org/northwind#>
+SELECT ?orderDate ?productName
+WHERE {
+  ?c a nw:Customer .
+  ?c nw:companyName ""Berglunds snabbköp"" .
+  ?o nw:placedBy ?c .
+  ?o nw:orderDate ?orderDate .
+  ?o nw:hasOrderLine ?ol .
+  ?ol nw:includesProduct ?p .
+  ?p nw:productName ?productName .
+}
+ORDER BY ?orderDate"
+HF-4,medium,"Which customers have ordered more than 2 distinct products across all their orders?","PREFIX nw: <http://example.org/northwind#>
+SELECT ?companyName (COUNT(DISTINCT ?p) AS ?distinctProducts)
+WHERE {
+  ?c a nw:Customer .
+  ?c nw:companyName ?companyName .
+  ?o nw:placedBy ?c .
+  ?o nw:hasOrderLine ?ol .
+  ?ol nw:includesProduct ?p .
+}
+GROUP BY ?companyName
+HAVING (COUNT(DISTINCT ?p) > 2)"
+HF-5,hard,"List all customers who have at least one order containing a discontinued product, along with the name of that product.","PREFIX nw: <http://example.org/northwind#>
+SELECT DISTINCT ?companyName ?productName
+WHERE {
+  ?c a nw:Customer .
+  ?c nw:companyName ?companyName .
+  ?o nw:placedBy ?c .
+  ?o nw:hasOrderLine ?ol .
+  ?ol nw:includesProduct ?p .
+  ?p nw:productName ?productName .
+  ?p nw:discontinued ""true""^^xsd:boolean .
+}"
