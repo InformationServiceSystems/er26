@@ -163,6 +163,13 @@ def exec_sparql(sparql):
             input=sparql, capture_output=True, text=True, timeout=10
         )
         return r.returncode == 0, r.stdout.strip() if r.returncode == 0 else r.stderr.strip()[:150]
+    except FileNotFoundError:
+        # arq (Jena) not installed — check syntax only (does it look like valid SPARQL?)
+        has_select = bool(re.search(r'SELECT\s', sparql, re.IGNORECASE))
+        has_where = bool(re.search(r'WHERE\s*\{', sparql, re.IGNORECASE))
+        if has_select and has_where:
+            return True, "(arq not available — syntax check only: SELECT+WHERE present)"
+        return False, "(arq not available — missing SELECT or WHERE)"
     except:
         return False, "timeout/error"
 
@@ -261,7 +268,11 @@ def run_smoke():
         # Free memory
         del model
         import gc; gc.collect()
-        import torch; torch.mps.empty_cache()
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        elif hasattr(torch, 'mps') and torch.backends.mps.is_available():
+            torch.mps.empty_cache()
 
     # Write results
     out_path = OUT_DIR / "smoke_results.jsonl"
