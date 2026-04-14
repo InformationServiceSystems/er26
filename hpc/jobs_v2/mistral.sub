@@ -1,0 +1,31 @@
+# HTCondor submit file for Mistral-7B — ER v2 experiment
+# Usage: condor_submit hpc/jobs_v2/mistral.sub
+# Targets forseti machines with A100 GPUs
+
+universe                = docker
+docker_image            = nvcr.io/nvidia/pytorch:25.01-py3
+
+executable              = hpc/jobs_v2/run_experiment.sh
+arguments               = mistral mistralai/Mistral-7B-Instruct-v0.3
+
+output                  = hpc/logs/v2_mistral_$(Cluster).out
+error                   = hpc/logs/v2_mistral_$(Cluster).err
+log                     = hpc/logs/v2_mistral_$(Cluster).log
+
+# Mount /home NFS into the container
++WantGPUHomeMounted     = true
+
+# Route to H200 (preferred) or Blackwell GPU machines
+Requirements            = (Machine == "tig.hpc.uni-saarland.de" || Machine == "tyr1.hpc.uni-saarland.de" || Machine == "tyr2.hpc.uni-saarland.de" || Machine == "forseti.hpc.uni-saarland.de" || Machine == "fjolnir.hpc.uni-saarland.de" || Machine == "fornjoter.hpc.uni-saarland.de")
+Rank                    = (Machine == "tig.hpc.uni-saarland.de") * 3 + (Machine == "tyr1.hpc.uni-saarland.de") * 3 + (Machine == "tyr2.hpc.uni-saarland.de") * 3 + (Machine == "forseti.hpc.uni-saarland.de") * 2 + (Machine == "fjolnir.hpc.uni-saarland.de") * 2 + (Machine == "fornjoter.hpc.uni-saarland.de") * 2
+
+# GPU request — 1 A100 40GB for 7B model in FP16
+request_gpus            = 1
+request_cpus            = 4
+request_memory          = 32G
+request_disk            = 50G
+
+# Expected runtime: ~8-12 hours for 950 outputs (190 tasks x K=5)
++MaxRuntime             = 86400
+
+queue

@@ -1,0 +1,111 @@
+ENTITY Customer {
+  Attributes: customerID (key), companyName, contactName, contactTitle, address, city, region, postalCode, country, phone, fax
+  Note: A customer may place zero or more orders. Some customers exist in the system without having placed any orders yet.
+}
+
+ENTITY Order {
+  Attributes: orderID (key), orderDate, requiredDate, shippedDate, freight
+  Note: Every order must be placed by exactly one customer and handled by exactly one employee. An order must contain at least one order line. The freight charge must be non-negative. An order that has not yet been shipped will not have a shipped date or an assigned shipper.
+}
+
+WEAK ENTITY OrderLine {
+  Partial key: (none — identified by combination of parent Order and referenced Product)
+  Owner: Order (via RELATIONSHIP HasOrderLine)
+  Attributes: quantity, unitPrice, discount
+  Note: The quantity must be a positive integer. The unit price must be non-negative. The discount must be a value between zero and one inclusive, representing a percentage. A discontinued product should not appear on a new order line.
+}
+
+ENTITY Product {
+  Attributes: productID (key), productName, unitPrice, unitsInStock, unitsOnOrder, reorderLevel, discontinued
+  Note: Every product belongs to exactly one category and is supplied by exactly one supplier. A discontinued product should not be included on any new order. If the number of units in stock falls below the reorder level, the product is flagged as needing reorder from its supplier.
+}
+
+ENTITY Category {
+  Attributes: categoryID (key), categoryName, description
+  Note: Categories group related products. A category may contain zero or more products.
+}
+
+ENTITY Supplier {
+  Attributes: supplierID (key), companyName, contactName, contactTitle, address, city, region, postalCode, country, phone, fax, homePage
+  Note: A supplier may provide one or more products. Every product must have exactly one supplier.
+}
+
+ENTITY Employee {
+  Attributes: employeeID (key), lastName, firstName, title, birthDate, hireDate, address, city, region, postalCode, country, homePhone, extension, notes
+  Note: An employee may handle zero or more orders. An employee may optionally report to another employee (their manager), but an employee cannot report to themselves. Some employees, such as the top executive, have no manager. An employee may be assigned to one or more sales territories, and those territory assignments define their sales region.
+}
+
+ENTITY Territory {
+  Attributes: territoryID (key), territoryDescription
+  Note: Each territory belongs to exactly one region. A territory may be served by one or more employees.
+}
+
+ENTITY Region {
+  Attributes: regionID (key), regionDescription
+  Note: A region contains one or more territories. Regions represent broad geographic areas such as Eastern, Western, Northern, and Southern.
+}
+
+ENTITY Shipper {
+  Attributes: shipperID (key), companyName, phone
+  Note: A shipper may deliver zero or more orders. Not every order has been assigned a shipper — orders that have not yet shipped will have no shipper.
+}
+
+RELATIONSHIP PlacedBy {
+  Entities: Order (participation: total, cardinality: N),
+            Customer (participation: partial, cardinality: 1)
+  Note: Each order is placed by exactly one customer. A customer may place zero or more orders.
+}
+
+RELATIONSHIP HandledBy {
+  Entities: Order (participation: total, cardinality: N),
+            Employee (participation: partial, cardinality: 1)
+  Note: Each order is handled by exactly one employee. An employee may handle zero or more orders.
+}
+
+RELATIONSHIP ShippedBy {
+  Entities: Order (participation: partial, cardinality: N),
+            Shipper (participation: partial, cardinality: 1)
+  Note: An order may be shipped by at most one shipper. Orders that have not yet been shipped have no assigned shipper. A shipper may deliver many orders.
+}
+
+RELATIONSHIP HasOrderLine {
+  Entities: Order (participation: total, cardinality: 1),
+            OrderLine (participation: total, cardinality: N)
+  Note: Each order contains one or more order lines. Each order line belongs to exactly one order. OrderLine is existence-dependent on Order.
+}
+
+RELATIONSHIP IncludesProduct {
+  Entities: OrderLine (participation: total, cardinality: N),
+            Product (participation: partial, cardinality: 1)
+  Note: Each order line references exactly one product. A product may appear on zero or more order lines. A discontinued product should not be referenced by new order lines.
+}
+
+RELATIONSHIP BelongsToCategory {
+  Entities: Product (participation: total, cardinality: N),
+            Category (participation: partial, cardinality: 1)
+  Note: Each product belongs to exactly one category. A category may contain zero or more products.
+}
+
+RELATIONSHIP SuppliedBy {
+  Entities: Product (participation: total, cardinality: N),
+            Supplier (participation: partial, cardinality: 1)
+  Note: Each product is supplied by exactly one supplier. A supplier may provide zero or more products.
+}
+
+RELATIONSHIP ReportsTo {
+  Entities: Employee (participation: partial, cardinality: N),
+            Employee (participation: partial, cardinality: 1)
+  Note: This is a self-referencing (recursive) relationship. An employee may report to at most one other employee (their manager). An employee who is the top-level executive does not report to anyone. An employee cannot report to themselves.
+}
+
+RELATIONSHIP ServesTerritory {
+  Entities: Employee (participation: partial, cardinality: M),
+            Territory (participation: partial, cardinality: N)
+  Note: An employee may be assigned to multiple territories, and a territory may be served by multiple employees. An employee's territory assignments collectively define their sales region coverage.
+}
+
+RELATIONSHIP InRegion {
+  Entities: Territory (participation: total, cardinality: N),
+            Region (participation: partial, cardinality: 1)
+  Note: Each territory belongs to exactly one region. A region may contain one or more territories.
+}

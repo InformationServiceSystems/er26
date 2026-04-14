@@ -52,10 +52,10 @@ class LocalChatModel:
                 )
             )
         elif self.device_type == "mps":
-            # Apple Silicon: load in FP16, then move to MPS
-            kwargs.update(dict(torch_dtype=torch.float16))
+            # Apple Silicon: load in FP32 for numerical stability (FP16 causes NaN on long prompts)
+            kwargs.update(dict(torch_dtype=torch.float32))
             if load_in_4bit:
-                print("Note: 4-bit quantization not supported on MPS. Using FP16 instead.")
+                print("Note: 4-bit quantization not supported on MPS. Using FP32 instead.")
         else:
             kwargs.update(dict(device_map="auto", torch_dtype=torch.float16))
 
@@ -93,6 +93,7 @@ class LocalChatModel:
                 max_new_tokens=max_new_tokens,
                 do_sample=True,
                 temperature=temperature,
+                top_p=0.95,
                 pad_token_id=self.tokenizer.eos_token_id,
             )
         text = self.tokenizer.decode(output_ids[0], skip_special_tokens=True)

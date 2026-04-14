@@ -1,0 +1,268 @@
+@prefix : <http://example.org/northwind#> .
+@prefix nw: <http://example.org/northwind#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# ============================================================
+# Northwind Order Subsystem — Minimal OWL 2 DL Ontology
+# Covers: Customer, Order, OrderLine, Product
+# ============================================================
+
+<http://example.org/northwind> a owl:Ontology ;
+    rdfs:label "Northwind Order Subsystem Ontology" ;
+    rdfs:comment "Minimal OWL 2 DL ontology for the Order-OrderLine-Product-Customer subsystem of the Northwind domain." .
+
+# ============================================================
+# Classes
+# ============================================================
+
+nw:Customer a owl:Class ;
+    rdfs:label "Customer" ;
+    rdfs:comment "A company or individual that places orders." .
+
+nw:Order a owl:Class ;
+    rdfs:label "Order" ;
+    rdfs:comment "A purchase order placed by a customer." .
+
+nw:OrderLine a owl:Class ;
+    rdfs:label "OrderLine" ;
+    rdfs:comment "A single line item within an order, referencing one product." .
+
+nw:Product a owl:Class ;
+    rdfs:label "Product" ;
+    rdfs:comment "A product available for sale." .
+
+# ============================================================
+# Disjointness Axioms
+# ============================================================
+
+nw:Customer owl:disjointWith nw:Order .
+nw:Customer owl:disjointWith nw:Product .
+
+# ============================================================
+# Object Properties
+# ============================================================
+
+nw:placedBy a owl:ObjectProperty ;
+    rdfs:label "placedBy" ;
+    rdfs:comment "Relates an Order to the Customer who placed it." ;
+    rdfs:domain nw:Order ;
+    rdfs:range nw:Customer .
+
+nw:placesOrder a owl:ObjectProperty ;
+    rdfs:label "placesOrder" ;
+    rdfs:comment "Inverse of placedBy. Relates a Customer to their Orders." ;
+    owl:inverseOf nw:placedBy ;
+    rdfs:domain nw:Customer ;
+    rdfs:range nw:Order .
+
+nw:hasOrderLine a owl:ObjectProperty ;
+    rdfs:label "hasOrderLine" ;
+    rdfs:comment "Relates an Order to one of its OrderLines." ;
+    rdfs:domain nw:Order ;
+    rdfs:range nw:OrderLine .
+
+nw:belongsToOrder a owl:ObjectProperty ;
+    rdfs:label "belongsToOrder" ;
+    rdfs:comment "Inverse of hasOrderLine. Relates an OrderLine to its parent Order." ;
+    owl:inverseOf nw:hasOrderLine ;
+    rdfs:domain nw:OrderLine ;
+    rdfs:range nw:Order .
+
+nw:includesProduct a owl:ObjectProperty ;
+    rdfs:label "includesProduct" ;
+    rdfs:comment "Relates an OrderLine to the single Product it references." ;
+    rdfs:domain nw:OrderLine ;
+    rdfs:range nw:Product .
+
+nw:isIncludedIn a owl:ObjectProperty ;
+    rdfs:label "isIncludedIn" ;
+    rdfs:comment "Inverse of includesProduct. Relates a Product to the OrderLines referencing it." ;
+    owl:inverseOf nw:includesProduct ;
+    rdfs:domain nw:Product ;
+    rdfs:range nw:OrderLine .
+
+# ============================================================
+# Cardinality Restrictions
+# ============================================================
+
+# OrderLine has exactly one includesProduct
+nw:OrderLine rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty nw:includesProduct ;
+    owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+    owl:onClass nw:Product
+] .
+
+# Order has at least one hasOrderLine
+nw:Order rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty nw:hasOrderLine ;
+    owl:minQualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+    owl:onClass nw:OrderLine
+] .
+
+# ============================================================
+# Data Properties
+# ============================================================
+
+nw:orderDate a owl:DatatypeProperty ;
+    rdfs:label "orderDate" ;
+    rdfs:comment "The date on which the order was placed." ;
+    rdfs:domain nw:Order ;
+    rdfs:range xsd:dateTime .
+
+nw:quantity a owl:DatatypeProperty ;
+    rdfs:label "quantity" ;
+    rdfs:comment "The number of units ordered in this line item." ;
+    rdfs:domain nw:OrderLine ;
+    rdfs:range xsd:integer .
+
+nw:unitPrice a owl:DatatypeProperty ;
+    rdfs:label "unitPrice" ;
+    rdfs:comment "The per-unit price charged for this line item." ;
+    rdfs:domain nw:OrderLine ;
+    rdfs:range xsd:decimal .
+
+nw:productName a owl:DatatypeProperty ;
+    rdfs:label "productName" ;
+    rdfs:comment "The display name of the product." ;
+    rdfs:domain nw:Product ;
+    rdfs:range xsd:string .
+
+nw:discontinued a owl:DatatypeProperty ;
+    rdfs:label "discontinued" ;
+    rdfs:comment "True if the product has been discontinued." ;
+    rdfs:domain nw:Product ;
+    rdfs:range xsd:boolean .
+
+nw:companyName a owl:DatatypeProperty ;
+    rdfs:label "companyName" ;
+    rdfs:comment "The registered company name of the customer." ;
+    rdfs:domain nw:Customer ;
+    rdfs:range xsd:string .
+
+nw:customerID a owl:DatatypeProperty ;
+    rdfs:label "customerID" ;
+    rdfs:comment "The unique five-character identifier for a customer." ;
+    rdfs:domain nw:Customer ;
+    rdfs:range xsd:string .
+
+# ============================================================
+# ABox — Customers (3)
+# ============================================================
+
+nw:customer_ALFKI a nw:Customer ;
+    nw:customerID "ALFKI" ;
+    nw:companyName "Alfreds Futterkiste" .
+
+nw:customer_BERGS a nw:Customer ;
+    nw:customerID "BERGS" ;
+    nw:companyName "Berglunds snabbköp" .
+
+nw:customer_COMMI a nw:Customer ;
+    nw:customerID "COMMI" ;
+    nw:companyName "Comércio Mineiro" .
+
+# ============================================================
+# ABox — Products (6, including 1 discontinued)
+# ============================================================
+
+nw:product_1 a nw:Product ;
+    nw:productName "Chai" ;
+    nw:discontinued "false"^^xsd:boolean .
+
+nw:product_2 a nw:Product ;
+    nw:productName "Chang" ;
+    nw:discontinued "false"^^xsd:boolean .
+
+nw:product_3 a nw:Product ;
+    nw:productName "Aniseed Syrup" ;
+    nw:discontinued "false"^^xsd:boolean .
+
+nw:product_4 a nw:Product ;
+    nw:productName "Grandma's Boysenberry Spread" ;
+    nw:discontinued "false"^^xsd:boolean .
+
+nw:product_5 a nw:Product ;
+    nw:productName "Tofu" ;
+    nw:discontinued "false"^^xsd:boolean .
+
+nw:product_6 a nw:Product ;
+    nw:productName "Guaraná Fantástica" ;
+    nw:discontinued "true"^^xsd:boolean .
+
+# ============================================================
+# ABox — Orders (5)
+# ============================================================
+
+nw:order_10643 a nw:Order ;
+    nw:orderDate "1997-08-25T00:00:00"^^xsd:dateTime ;
+    nw:placedBy nw:customer_ALFKI ;
+    nw:hasOrderLine nw:ol_10643_1, nw:ol_10643_2 .
+
+nw:order_10692 a nw:Order ;
+    nw:orderDate "1997-10-03T00:00:00"^^xsd:dateTime ;
+    nw:placedBy nw:customer_ALFKI ;
+    nw:hasOrderLine nw:ol_10692_1 .
+
+nw:order_10278 a nw:Order ;
+    nw:orderDate "1996-08-12T00:00:00"^^xsd:dateTime ;
+    nw:placedBy nw:customer_BERGS ;
+    nw:hasOrderLine nw:ol_10278_1, nw:ol_10278_2 .
+
+nw:order_10444 a nw:Order ;
+    nw:orderDate "1997-02-03T00:00:00"^^xsd:dateTime ;
+    nw:placedBy nw:customer_BERGS ;
+    nw:hasOrderLine nw:ol_10444_1 .
+
+nw:order_10290 a nw:Order ;
+    nw:orderDate "1996-08-27T00:00:00"^^xsd:dateTime ;
+    nw:placedBy nw:customer_COMMI ;
+    nw:hasOrderLine nw:ol_10290_1, nw:ol_10290_2 .
+
+# ============================================================
+# ABox — OrderLines (8)
+# ============================================================
+
+nw:ol_10643_1 a nw:OrderLine ;
+    nw:includesProduct nw:product_1 ;
+    nw:quantity "15"^^xsd:integer ;
+    nw:unitPrice "18.00"^^xsd:decimal .
+
+nw:ol_10643_2 a nw:OrderLine ;
+    nw:includesProduct nw:product_2 ;
+    nw:quantity "21"^^xsd:integer ;
+    nw:unitPrice "19.00"^^xsd:decimal .
+
+nw:ol_10692_1 a nw:OrderLine ;
+    nw:includesProduct nw:product_3 ;
+    nw:quantity "20"^^xsd:integer ;
+    nw:unitPrice "10.00"^^xsd:decimal .
+
+nw:ol_10278_1 a nw:OrderLine ;
+    nw:includesProduct nw:product_4 ;
+    nw:quantity "16"^^xsd:integer ;
+    nw:unitPrice "25.00"^^xsd:decimal .
+
+nw:ol_10278_2 a nw:OrderLine ;
+    nw:includesProduct nw:product_5 ;
+    nw:quantity "15"^^xsd:integer ;
+    nw:unitPrice "23.25"^^xsd:decimal .
+
+nw:ol_10444_1 a nw:OrderLine ;
+    nw:includesProduct nw:product_1 ;
+    nw:quantity "12"^^xsd:integer ;
+    nw:unitPrice "18.00"^^xsd:decimal .
+
+nw:ol_10290_1 a nw:OrderLine ;
+    nw:includesProduct nw:product_5 ;
+    nw:quantity "20"^^xsd:integer ;
+    nw:unitPrice "23.25"^^xsd:decimal .
+
+nw:ol_10290_2 a nw:OrderLine ;
+    nw:includesProduct nw:product_6 ;
+    nw:quantity "10"^^xsd:integer ;
+    nw:unitPrice "4.50"^^xsd:decimal .

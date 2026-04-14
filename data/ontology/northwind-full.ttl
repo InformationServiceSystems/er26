@@ -1,0 +1,1140 @@
+@prefix : <http://example.org/northwind#> .
+@prefix nw: <http://example.org/northwind#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# ============================================================
+# Northwind Full Domain — OWL 2 DL Ontology
+# 11 classes, all relationships, business rules, ABox data
+# ============================================================
+
+<http://example.org/northwind> a owl:Ontology ;
+    rdfs:label "Northwind Full Domain Ontology" ;
+    rdfs:comment "Complete OWL 2 DL ontology for the Northwind food distribution domain covering customers, orders, products, employees, suppliers, shippers, categories, territories, and regions." .
+
+# ============================================================
+# Classes (11)
+# ============================================================
+
+nw:Customer a owl:Class ;
+    rdfs:label "Customer" ;
+    rdfs:comment "A company or individual that places purchase orders." .
+
+nw:Order a owl:Class ;
+    rdfs:label "Order" ;
+    rdfs:comment "A purchase order placed by a customer, handled by an employee, and optionally shipped by a shipper." .
+
+nw:OrderLine a owl:Class ;
+    rdfs:label "OrderLine" ;
+    rdfs:comment "A single line item within an order, referencing one product with quantity, price, and discount. Weak entity identified by its parent Order and referenced Product." .
+
+nw:Product a owl:Class ;
+    rdfs:label "Product" ;
+    rdfs:comment "A product available for sale, belonging to a category and supplied by a supplier." .
+
+nw:Category a owl:Class ;
+    rdfs:label "Category" ;
+    rdfs:comment "A grouping of related products (e.g., Beverages, Condiments)." .
+
+nw:Supplier a owl:Class ;
+    rdfs:label "Supplier" ;
+    rdfs:comment "A company that supplies products to the distributor." .
+
+nw:Employee a owl:Class ;
+    rdfs:label "Employee" ;
+    rdfs:comment "A staff member who handles customer orders and is assigned to sales territories." .
+
+nw:Territory a owl:Class ;
+    rdfs:label "Territory" ;
+    rdfs:comment "A named sales territory within a region, assigned to one or more employees." .
+
+nw:Region a owl:Class ;
+    rdfs:label "Region" ;
+    rdfs:comment "A broad geographic region containing one or more territories." .
+
+nw:Shipper a owl:Class ;
+    rdfs:label "Shipper" ;
+    rdfs:comment "A shipping company used to deliver orders to customers." .
+
+# ============================================================
+# Disjointness — All 10 named classes are pairwise disjoint
+# ============================================================
+
+[] a owl:AllDisjointClasses ;
+    owl:members ( nw:Customer nw:Order nw:OrderLine nw:Product
+                  nw:Category nw:Supplier nw:Employee nw:Territory
+                  nw:Region nw:Shipper ) .
+
+# ============================================================
+# Object Properties
+# ============================================================
+
+# --- Order --> Customer (N:1, total on Order) ---
+nw:placedBy a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "placedBy" ;
+    rdfs:comment "Relates an Order to the Customer who placed it." ;
+    rdfs:domain nw:Order ;
+    rdfs:range nw:Customer .
+
+nw:placesOrder a owl:ObjectProperty ;
+    rdfs:label "placesOrder" ;
+    rdfs:comment "Inverse of placedBy. Relates a Customer to their Orders." ;
+    owl:inverseOf nw:placedBy ;
+    rdfs:domain nw:Customer ;
+    rdfs:range nw:Order .
+
+# --- Order --> Employee (N:1, total on Order) ---
+nw:handledBy a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "handledBy" ;
+    rdfs:comment "Relates an Order to the Employee responsible for processing it." ;
+    rdfs:domain nw:Order ;
+    rdfs:range nw:Employee .
+
+nw:handlesOrder a owl:ObjectProperty ;
+    rdfs:label "handlesOrder" ;
+    rdfs:comment "Inverse of handledBy. Relates an Employee to Orders they handle." ;
+    owl:inverseOf nw:handledBy ;
+    rdfs:domain nw:Employee ;
+    rdfs:range nw:Order .
+
+# --- Order --> Shipper (N:1, partial on Order) ---
+nw:shippedBy a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "shippedBy" ;
+    rdfs:comment "Relates an Order to the Shipper that delivers it. Partial participation: unshipped orders have no shipper." ;
+    rdfs:domain nw:Order ;
+    rdfs:range nw:Shipper .
+
+nw:shipsOrder a owl:ObjectProperty ;
+    rdfs:label "shipsOrder" ;
+    rdfs:comment "Inverse of shippedBy. Relates a Shipper to Orders it delivers." ;
+    owl:inverseOf nw:shippedBy ;
+    rdfs:domain nw:Shipper ;
+    rdfs:range nw:Order .
+
+# --- Order --> OrderLine (1:N, total on both) ---
+nw:hasOrderLine a owl:ObjectProperty ;
+    rdfs:label "hasOrderLine" ;
+    rdfs:comment "Relates an Order to one of its OrderLines." ;
+    rdfs:domain nw:Order ;
+    rdfs:range nw:OrderLine .
+
+nw:belongsToOrder a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "belongsToOrder" ;
+    rdfs:comment "Inverse of hasOrderLine. Relates an OrderLine to its parent Order." ;
+    owl:inverseOf nw:hasOrderLine ;
+    rdfs:domain nw:OrderLine ;
+    rdfs:range nw:Order .
+
+# --- OrderLine --> Product (N:1, total on OrderLine) ---
+nw:includesProduct a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "includesProduct" ;
+    rdfs:comment "Relates an OrderLine to the single Product it references." ;
+    rdfs:domain nw:OrderLine ;
+    rdfs:range nw:Product .
+
+nw:isIncludedIn a owl:ObjectProperty ;
+    rdfs:label "isIncludedIn" ;
+    rdfs:comment "Inverse of includesProduct. Relates a Product to the OrderLines referencing it." ;
+    owl:inverseOf nw:includesProduct ;
+    rdfs:domain nw:Product ;
+    rdfs:range nw:OrderLine .
+
+# --- Product --> Category (N:1, total on Product) ---
+nw:belongsToCategory a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "belongsToCategory" ;
+    rdfs:comment "Relates a Product to its Category." ;
+    rdfs:domain nw:Product ;
+    rdfs:range nw:Category .
+
+nw:hasProduct a owl:ObjectProperty ;
+    rdfs:label "hasProduct" ;
+    rdfs:comment "Inverse of belongsToCategory. Relates a Category to its Products." ;
+    owl:inverseOf nw:belongsToCategory ;
+    rdfs:domain nw:Category ;
+    rdfs:range nw:Product .
+
+# --- Product --> Supplier (N:1, total on Product) ---
+nw:suppliedBy a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "suppliedBy" ;
+    rdfs:comment "Relates a Product to the Supplier that provides it." ;
+    rdfs:domain nw:Product ;
+    rdfs:range nw:Supplier .
+
+nw:suppliesProduct a owl:ObjectProperty ;
+    rdfs:label "suppliesProduct" ;
+    rdfs:comment "Inverse of suppliedBy. Relates a Supplier to Products it supplies." ;
+    owl:inverseOf nw:suppliedBy ;
+    rdfs:domain nw:Supplier ;
+    rdfs:range nw:Product .
+
+# --- Employee --> Employee (N:1, partial, self-referencing) ---
+nw:reportsTo a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "reportsTo" ;
+    rdfs:comment "Relates an Employee to their direct manager. Partial participation: top-level employees have no manager. An employee cannot report to themselves." ;
+    rdfs:domain nw:Employee ;
+    rdfs:range nw:Employee .
+
+nw:hasDirectReport a owl:ObjectProperty ;
+    rdfs:label "hasDirectReport" ;
+    rdfs:comment "Inverse of reportsTo. Relates a manager to their subordinates." ;
+    owl:inverseOf nw:reportsTo ;
+    rdfs:domain nw:Employee ;
+    rdfs:range nw:Employee .
+
+# --- Employee <--> Territory (M:N) ---
+nw:servesTerritory a owl:ObjectProperty ;
+    rdfs:label "servesTerritory" ;
+    rdfs:comment "Relates an Employee to a Territory they are responsible for." ;
+    rdfs:domain nw:Employee ;
+    rdfs:range nw:Territory .
+
+nw:servedByEmployee a owl:ObjectProperty ;
+    rdfs:label "servedByEmployee" ;
+    rdfs:comment "Inverse of servesTerritory. Relates a Territory to the Employees assigned to it." ;
+    owl:inverseOf nw:servesTerritory ;
+    rdfs:domain nw:Territory ;
+    rdfs:range nw:Employee .
+
+# --- Territory --> Region (N:1, total on Territory) ---
+nw:inRegion a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "inRegion" ;
+    rdfs:comment "Relates a Territory to the Region it belongs to. Each territory belongs to exactly one region." ;
+    rdfs:domain nw:Territory ;
+    rdfs:range nw:Region .
+
+nw:hasTerritory a owl:ObjectProperty ;
+    rdfs:label "hasTerritory" ;
+    rdfs:comment "Inverse of inRegion. Relates a Region to its Territories." ;
+    owl:inverseOf nw:inRegion ;
+    rdfs:domain nw:Region ;
+    rdfs:range nw:Territory .
+
+# ============================================================
+# Cardinality Restrictions
+# ============================================================
+
+# Order must be placed by exactly one Customer
+nw:Order rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty nw:placedBy ;
+    owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+    owl:onClass nw:Customer
+] .
+
+# Order must be handled by exactly one Employee
+nw:Order rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty nw:handledBy ;
+    owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+    owl:onClass nw:Employee
+] .
+
+# Order has at least one OrderLine
+nw:Order rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty nw:hasOrderLine ;
+    owl:minQualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+    owl:onClass nw:OrderLine
+] .
+
+# Order shipped by at most one Shipper (partial: 0 or 1)
+nw:Order rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty nw:shippedBy ;
+    owl:maxQualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+    owl:onClass nw:Shipper
+] .
+
+# OrderLine references exactly one Product
+nw:OrderLine rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty nw:includesProduct ;
+    owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+    owl:onClass nw:Product
+] .
+
+# OrderLine belongs to exactly one Order
+nw:OrderLine rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty nw:belongsToOrder ;
+    owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+    owl:onClass nw:Order
+] .
+
+# Product belongs to exactly one Category
+nw:Product rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty nw:belongsToCategory ;
+    owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+    owl:onClass nw:Category
+] .
+
+# Product supplied by exactly one Supplier
+nw:Product rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty nw:suppliedBy ;
+    owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+    owl:onClass nw:Supplier
+] .
+
+# Territory belongs to exactly one Region
+nw:Territory rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty nw:inRegion ;
+    owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+    owl:onClass nw:Region
+] .
+
+# ============================================================
+# IrreflexiveProperty — Employee cannot report to themselves
+# ============================================================
+
+nw:reportsTo a owl:IrreflexiveProperty .
+
+# ============================================================
+# Data Properties — Customer
+# ============================================================
+
+nw:customerID a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "customerID" ;
+    rdfs:comment "Unique five-character identifier for a customer." ;
+    rdfs:domain nw:Customer ;
+    rdfs:range xsd:string .
+
+nw:companyName a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "companyName" ;
+    rdfs:comment "Registered company name." ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( nw:Customer nw:Supplier nw:Shipper ) ] ;
+    rdfs:range xsd:string .
+
+nw:contactName a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "contactName" ;
+    rdfs:comment "Name of the primary contact person." ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( nw:Customer nw:Supplier ) ] ;
+    rdfs:range xsd:string .
+
+nw:contactTitle a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "contactTitle" ;
+    rdfs:comment "Job title of the primary contact person." ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( nw:Customer nw:Supplier ) ] ;
+    rdfs:range xsd:string .
+
+nw:address a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "address" ;
+    rdfs:comment "Street address." ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( nw:Customer nw:Supplier nw:Employee ) ] ;
+    rdfs:range xsd:string .
+
+nw:city a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "city" ;
+    rdfs:comment "City name." ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( nw:Customer nw:Supplier nw:Employee ) ] ;
+    rdfs:range xsd:string .
+
+nw:region a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "regionName" ;
+    rdfs:comment "State or province name." ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( nw:Customer nw:Supplier nw:Employee ) ] ;
+    rdfs:range xsd:string .
+
+nw:postalCode a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "postalCode" ;
+    rdfs:comment "Postal or ZIP code." ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( nw:Customer nw:Supplier nw:Employee ) ] ;
+    rdfs:range xsd:string .
+
+nw:country a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "country" ;
+    rdfs:comment "Country name." ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( nw:Customer nw:Supplier nw:Employee ) ] ;
+    rdfs:range xsd:string .
+
+nw:phone a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "phone" ;
+    rdfs:comment "Primary telephone number." ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( nw:Customer nw:Supplier nw:Shipper ) ] ;
+    rdfs:range xsd:string .
+
+nw:fax a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "fax" ;
+    rdfs:comment "Fax number." ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( nw:Customer nw:Supplier ) ] ;
+    rdfs:range xsd:string .
+
+# ============================================================
+# Data Properties — Order
+# ============================================================
+
+nw:orderID a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "orderID" ;
+    rdfs:comment "Unique numeric identifier for an order." ;
+    rdfs:domain nw:Order ;
+    rdfs:range xsd:integer .
+
+nw:orderDate a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "orderDate" ;
+    rdfs:comment "Date on which the order was placed." ;
+    rdfs:domain nw:Order ;
+    rdfs:range xsd:dateTime .
+
+nw:requiredDate a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "requiredDate" ;
+    rdfs:comment "Date by which the customer requires delivery." ;
+    rdfs:domain nw:Order ;
+    rdfs:range xsd:dateTime .
+
+nw:shippedDate a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "shippedDate" ;
+    rdfs:comment "Date on which the order was shipped. Absent if not yet shipped." ;
+    rdfs:domain nw:Order ;
+    rdfs:range xsd:dateTime .
+
+nw:freight a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "freight" ;
+    rdfs:comment "Shipping cost for the order. Must be non-negative." ;
+    rdfs:domain nw:Order ;
+    rdfs:range xsd:decimal .
+
+# ============================================================
+# Data Properties — OrderLine
+# ============================================================
+
+nw:quantity a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "quantity" ;
+    rdfs:comment "Number of units ordered. Must be a positive integer." ;
+    rdfs:domain nw:OrderLine ;
+    rdfs:range xsd:integer .
+
+nw:olUnitPrice a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "unitPrice" ;
+    rdfs:comment "Per-unit price charged for this line item. Must be non-negative." ;
+    rdfs:domain nw:OrderLine ;
+    rdfs:range xsd:decimal .
+
+nw:discount a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "discount" ;
+    rdfs:comment "Discount percentage applied to this line item, between 0 and 1 inclusive." ;
+    rdfs:domain nw:OrderLine ;
+    rdfs:range xsd:float .
+
+# ============================================================
+# Data Properties — Product
+# ============================================================
+
+nw:productID a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "productID" ;
+    rdfs:comment "Unique numeric identifier for a product." ;
+    rdfs:domain nw:Product ;
+    rdfs:range xsd:integer .
+
+nw:productName a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "productName" ;
+    rdfs:comment "Display name of the product." ;
+    rdfs:domain nw:Product ;
+    rdfs:range xsd:string .
+
+nw:productUnitPrice a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "unitPrice" ;
+    rdfs:comment "Current list price per unit for this product." ;
+    rdfs:domain nw:Product ;
+    rdfs:range xsd:decimal .
+
+nw:unitsInStock a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "unitsInStock" ;
+    rdfs:comment "Number of units currently in warehouse stock." ;
+    rdfs:domain nw:Product ;
+    rdfs:range xsd:integer .
+
+nw:unitsOnOrder a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "unitsOnOrder" ;
+    rdfs:comment "Number of units on order from the supplier." ;
+    rdfs:domain nw:Product ;
+    rdfs:range xsd:integer .
+
+nw:reorderLevel a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "reorderLevel" ;
+    rdfs:comment "Minimum stock level that triggers a reorder. If unitsInStock falls below this value, the product needs reordering." ;
+    rdfs:domain nw:Product ;
+    rdfs:range xsd:integer .
+
+nw:discontinued a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "discontinued" ;
+    rdfs:comment "True if the product has been discontinued. A discontinued product cannot appear on new orders." ;
+    rdfs:domain nw:Product ;
+    rdfs:range xsd:boolean .
+
+# ============================================================
+# Data Properties — Category
+# ============================================================
+
+nw:categoryID a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "categoryID" ;
+    rdfs:comment "Unique numeric identifier for a category." ;
+    rdfs:domain nw:Category ;
+    rdfs:range xsd:integer .
+
+nw:categoryName a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "categoryName" ;
+    rdfs:comment "Display name of the product category." ;
+    rdfs:domain nw:Category ;
+    rdfs:range xsd:string .
+
+nw:description a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "description" ;
+    rdfs:comment "Textual description of the category." ;
+    rdfs:domain nw:Category ;
+    rdfs:range xsd:string .
+
+# ============================================================
+# Data Properties — Supplier
+# ============================================================
+
+nw:supplierID a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "supplierID" ;
+    rdfs:comment "Unique numeric identifier for a supplier." ;
+    rdfs:domain nw:Supplier ;
+    rdfs:range xsd:integer .
+
+nw:homePage a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "homePage" ;
+    rdfs:comment "URL of the supplier's home page." ;
+    rdfs:domain nw:Supplier ;
+    rdfs:range xsd:string .
+
+# ============================================================
+# Data Properties — Employee
+# ============================================================
+
+nw:employeeID a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "employeeID" ;
+    rdfs:comment "Unique numeric identifier for an employee." ;
+    rdfs:domain nw:Employee ;
+    rdfs:range xsd:integer .
+
+nw:lastName a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "lastName" ;
+    rdfs:comment "Employee's last name." ;
+    rdfs:domain nw:Employee ;
+    rdfs:range xsd:string .
+
+nw:firstName a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "firstName" ;
+    rdfs:comment "Employee's first name." ;
+    rdfs:domain nw:Employee ;
+    rdfs:range xsd:string .
+
+nw:title a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "title" ;
+    rdfs:comment "Employee's job title." ;
+    rdfs:domain nw:Employee ;
+    rdfs:range xsd:string .
+
+nw:birthDate a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "birthDate" ;
+    rdfs:comment "Employee's date of birth." ;
+    rdfs:domain nw:Employee ;
+    rdfs:range xsd:dateTime .
+
+nw:hireDate a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "hireDate" ;
+    rdfs:comment "Date the employee was hired." ;
+    rdfs:domain nw:Employee ;
+    rdfs:range xsd:dateTime .
+
+nw:homePhone a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "homePhone" ;
+    rdfs:comment "Employee's home telephone number." ;
+    rdfs:domain nw:Employee ;
+    rdfs:range xsd:string .
+
+nw:extension a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "extension" ;
+    rdfs:comment "Employee's internal telephone extension." ;
+    rdfs:domain nw:Employee ;
+    rdfs:range xsd:string .
+
+nw:notes a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "notes" ;
+    rdfs:comment "Free-text notes about the employee." ;
+    rdfs:domain nw:Employee ;
+    rdfs:range xsd:string .
+
+# ============================================================
+# Data Properties — Territory
+# ============================================================
+
+nw:territoryID a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "territoryID" ;
+    rdfs:comment "Unique identifier for a territory." ;
+    rdfs:domain nw:Territory ;
+    rdfs:range xsd:string .
+
+nw:territoryDescription a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "territoryDescription" ;
+    rdfs:comment "Descriptive name of the territory." ;
+    rdfs:domain nw:Territory ;
+    rdfs:range xsd:string .
+
+# ============================================================
+# Data Properties — Region
+# ============================================================
+
+nw:regionID a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "regionID" ;
+    rdfs:comment "Unique numeric identifier for a region." ;
+    rdfs:domain nw:Region ;
+    rdfs:range xsd:integer .
+
+nw:regionDescription a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "regionDescription" ;
+    rdfs:comment "Descriptive name of the region." ;
+    rdfs:domain nw:Region ;
+    rdfs:range xsd:string .
+
+# ============================================================
+# Data Properties — Shipper
+# ============================================================
+
+nw:shipperID a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "shipperID" ;
+    rdfs:comment "Unique numeric identifier for a shipper." ;
+    rdfs:domain nw:Shipper ;
+    rdfs:range xsd:integer .
+
+# ============================================================
+# ABox — Regions (4)
+# ============================================================
+
+nw:region_1 a nw:Region ;
+    nw:regionID "1"^^xsd:integer ;
+    nw:regionDescription "Eastern" .
+
+nw:region_2 a nw:Region ;
+    nw:regionID "2"^^xsd:integer ;
+    nw:regionDescription "Western" .
+
+nw:region_3 a nw:Region ;
+    nw:regionID "3"^^xsd:integer ;
+    nw:regionDescription "Northern" .
+
+nw:region_4 a nw:Region ;
+    nw:regionID "4"^^xsd:integer ;
+    nw:regionDescription "Southern" .
+
+# ============================================================
+# ABox — Territories (6)
+# ============================================================
+
+nw:territory_01581 a nw:Territory ;
+    nw:territoryID "01581" ;
+    nw:territoryDescription "Westboro" ;
+    nw:inRegion nw:region_1 .
+
+nw:territory_01730 a nw:Territory ;
+    nw:territoryID "01730" ;
+    nw:territoryDescription "Bedford" ;
+    nw:inRegion nw:region_1 .
+
+nw:territory_01833 a nw:Territory ;
+    nw:territoryID "01833" ;
+    nw:territoryDescription "Georgetown" ;
+    nw:inRegion nw:region_1 .
+
+nw:territory_98004 a nw:Territory ;
+    nw:territoryID "98004" ;
+    nw:territoryDescription "Bellevue" ;
+    nw:inRegion nw:region_2 .
+
+nw:territory_30346 a nw:Territory ;
+    nw:territoryID "30346" ;
+    nw:territoryDescription "Atlanta" ;
+    nw:inRegion nw:region_4 .
+
+nw:territory_55113 a nw:Territory ;
+    nw:territoryID "55113" ;
+    nw:territoryDescription "Roseville" ;
+    nw:inRegion nw:region_3 .
+
+# ============================================================
+# ABox — Categories (3)
+# ============================================================
+
+nw:category_1 a nw:Category ;
+    nw:categoryID "1"^^xsd:integer ;
+    nw:categoryName "Beverages" ;
+    nw:description "Soft drinks, coffees, teas, beers, and ales" .
+
+nw:category_2 a nw:Category ;
+    nw:categoryID "2"^^xsd:integer ;
+    nw:categoryName "Condiments" ;
+    nw:description "Sweet and savory sauces, relishes, spreads, and seasonings" .
+
+nw:category_3 a nw:Category ;
+    nw:categoryID "3"^^xsd:integer ;
+    nw:categoryName "Confections" ;
+    nw:description "Desserts, candies, and sweet breads" .
+
+# ============================================================
+# ABox — Suppliers (2)
+# ============================================================
+
+nw:supplier_1 a nw:Supplier ;
+    nw:supplierID "1"^^xsd:integer ;
+    nw:companyName "Exotic Liquids" ;
+    nw:contactName "Charlotte Cooper" ;
+    nw:contactTitle "Purchasing Manager" ;
+    nw:address "49 Gilbert St." ;
+    nw:city "London" ;
+    nw:postalCode "EC1 4SD" ;
+    nw:country "UK" ;
+    nw:phone "(171) 555-2222" ;
+    nw:fax "" ;
+    nw:homePage "" .
+
+nw:supplier_2 a nw:Supplier ;
+    nw:supplierID "2"^^xsd:integer ;
+    nw:companyName "New Orleans Cajun Delights" ;
+    nw:contactName "Shelley Burke" ;
+    nw:contactTitle "Order Administrator" ;
+    nw:address "P.O. Box 78934" ;
+    nw:city "New Orleans" ;
+    nw:region "LA" ;
+    nw:postalCode "70117" ;
+    nw:country "USA" ;
+    nw:phone "(100) 555-4822" ;
+    nw:fax "" ;
+    nw:homePage "#CAJUN.HTM#" .
+
+# ============================================================
+# ABox — Shippers (3)
+# ============================================================
+
+nw:shipper_1 a nw:Shipper ;
+    nw:shipperID "1"^^xsd:integer ;
+    nw:companyName "Speedy Express" ;
+    nw:phone "(503) 555-9831" .
+
+nw:shipper_2 a nw:Shipper ;
+    nw:shipperID "2"^^xsd:integer ;
+    nw:companyName "United Package" ;
+    nw:phone "(503) 555-3199" .
+
+nw:shipper_3 a nw:Shipper ;
+    nw:shipperID "3"^^xsd:integer ;
+    nw:companyName "Federal Shipping" ;
+    nw:phone "(503) 555-9931" .
+
+# ============================================================
+# ABox — Employees (3: 1 manager, 2 reports)
+# ============================================================
+
+nw:employee_2 a nw:Employee ;
+    nw:employeeID "2"^^xsd:integer ;
+    nw:lastName "Fuller" ;
+    nw:firstName "Andrew" ;
+    nw:title "Vice President, Sales" ;
+    nw:birthDate "1952-02-19T00:00:00"^^xsd:dateTime ;
+    nw:hireDate "1992-08-14T00:00:00"^^xsd:dateTime ;
+    nw:address "908 W. Capital Way" ;
+    nw:city "Tacoma" ;
+    nw:region "WA" ;
+    nw:postalCode "98401" ;
+    nw:country "USA" ;
+    nw:homePhone "(206) 555-9482" ;
+    nw:extension "3457" ;
+    nw:notes "Andrew received his BTS commercial in 1974 and a Ph.D. in international marketing from the University of Dallas in 1981. He is fluent in French and Italian." ;
+    nw:servesTerritory nw:territory_01581, nw:territory_01730 .
+
+nw:employee_1 a nw:Employee ;
+    nw:employeeID "1"^^xsd:integer ;
+    nw:lastName "Davolio" ;
+    nw:firstName "Nancy" ;
+    nw:title "Sales Representative" ;
+    nw:birthDate "1948-12-08T00:00:00"^^xsd:dateTime ;
+    nw:hireDate "1992-05-01T00:00:00"^^xsd:dateTime ;
+    nw:address "507 - 20th Ave. E. Apt. 2A" ;
+    nw:city "Seattle" ;
+    nw:region "WA" ;
+    nw:postalCode "98122" ;
+    nw:country "USA" ;
+    nw:homePhone "(206) 555-9857" ;
+    nw:extension "5467" ;
+    nw:notes "Education includes a BA in psychology from Colorado State University in 1970. She also completed The Art of the Cold Call. Nancy is a member of Toastmasters International." ;
+    nw:reportsTo nw:employee_2 ;
+    nw:servesTerritory nw:territory_01833, nw:territory_98004 .
+
+nw:employee_3 a nw:Employee ;
+    nw:employeeID "3"^^xsd:integer ;
+    nw:lastName "Leverling" ;
+    nw:firstName "Janet" ;
+    nw:title "Sales Representative" ;
+    nw:birthDate "1963-08-30T00:00:00"^^xsd:dateTime ;
+    nw:hireDate "1992-04-01T00:00:00"^^xsd:dateTime ;
+    nw:address "722 Moss Bay Blvd." ;
+    nw:city "Kirkland" ;
+    nw:region "WA" ;
+    nw:postalCode "98033" ;
+    nw:country "USA" ;
+    nw:homePhone "(206) 555-3412" ;
+    nw:extension "3355" ;
+    nw:notes "Janet has a BS degree in chemistry from Boston College (1984). She has also completed a certificate program in food retailing management." ;
+    nw:reportsTo nw:employee_2 ;
+    nw:servesTerritory nw:territory_30346, nw:territory_55113 .
+
+# ============================================================
+# ABox — Customers (5)
+# ============================================================
+
+nw:customer_ALFKI a nw:Customer ;
+    nw:customerID "ALFKI" ;
+    nw:companyName "Alfreds Futterkiste" ;
+    nw:contactName "Maria Anders" ;
+    nw:contactTitle "Sales Representative" ;
+    nw:address "Obere Str. 57" ;
+    nw:city "Berlin" ;
+    nw:postalCode "12209" ;
+    nw:country "Germany" ;
+    nw:phone "030-0074321" ;
+    nw:fax "030-0076545" .
+
+nw:customer_BERGS a nw:Customer ;
+    nw:customerID "BERGS" ;
+    nw:companyName "Berglunds snabbkop" ;
+    nw:contactName "Christina Berglund" ;
+    nw:contactTitle "Order Administrator" ;
+    nw:address "Berguvsvagen 8" ;
+    nw:city "Lulea" ;
+    nw:postalCode "S-958 22" ;
+    nw:country "Sweden" ;
+    nw:phone "0921-12 34 65" ;
+    nw:fax "0921-12 34 67" .
+
+nw:customer_COMMI a nw:Customer ;
+    nw:customerID "COMMI" ;
+    nw:companyName "Comercio Mineiro" ;
+    nw:contactName "Pedro Afonso" ;
+    nw:contactTitle "Sales Associate" ;
+    nw:address "Av. dos Lusiadas, 23" ;
+    nw:city "Sao Paulo" ;
+    nw:region "SP" ;
+    nw:postalCode "05432-043" ;
+    nw:country "Brazil" ;
+    nw:phone "(11) 555-7647" ;
+    nw:fax "" .
+
+nw:customer_DRACD a nw:Customer ;
+    nw:customerID "DRACD" ;
+    nw:companyName "Drachenblut Delikatessen" ;
+    nw:contactName "Sven Ottlieb" ;
+    nw:contactTitle "Order Administrator" ;
+    nw:address "Walserweg 21" ;
+    nw:city "Aachen" ;
+    nw:postalCode "52066" ;
+    nw:country "Germany" ;
+    nw:phone "0241-039123" ;
+    nw:fax "0241-059428" .
+
+nw:customer_ERNSH a nw:Customer ;
+    nw:customerID "ERNSH" ;
+    nw:companyName "Ernst Handel" ;
+    nw:contactName "Roland Mendel" ;
+    nw:contactTitle "Sales Manager" ;
+    nw:address "Kirchgasse 6" ;
+    nw:city "Graz" ;
+    nw:postalCode "8010" ;
+    nw:country "Austria" ;
+    nw:phone "7675-3425" ;
+    nw:fax "7675-3426" .
+
+# ============================================================
+# ABox — Products (8, including 1 discontinued)
+# ============================================================
+
+nw:product_1 a nw:Product ;
+    nw:productID "1"^^xsd:integer ;
+    nw:productName "Chai" ;
+    nw:productUnitPrice "18.00"^^xsd:decimal ;
+    nw:unitsInStock "39"^^xsd:integer ;
+    nw:unitsOnOrder "0"^^xsd:integer ;
+    nw:reorderLevel "10"^^xsd:integer ;
+    nw:discontinued "false"^^xsd:boolean ;
+    nw:belongsToCategory nw:category_1 ;
+    nw:suppliedBy nw:supplier_1 .
+
+nw:product_2 a nw:Product ;
+    nw:productID "2"^^xsd:integer ;
+    nw:productName "Chang" ;
+    nw:productUnitPrice "19.00"^^xsd:decimal ;
+    nw:unitsInStock "17"^^xsd:integer ;
+    nw:unitsOnOrder "40"^^xsd:integer ;
+    nw:reorderLevel "25"^^xsd:integer ;
+    nw:discontinued "false"^^xsd:boolean ;
+    nw:belongsToCategory nw:category_1 ;
+    nw:suppliedBy nw:supplier_1 .
+
+nw:product_3 a nw:Product ;
+    nw:productID "3"^^xsd:integer ;
+    nw:productName "Aniseed Syrup" ;
+    nw:productUnitPrice "10.00"^^xsd:decimal ;
+    nw:unitsInStock "13"^^xsd:integer ;
+    nw:unitsOnOrder "70"^^xsd:integer ;
+    nw:reorderLevel "25"^^xsd:integer ;
+    nw:discontinued "false"^^xsd:boolean ;
+    nw:belongsToCategory nw:category_2 ;
+    nw:suppliedBy nw:supplier_1 .
+
+nw:product_4 a nw:Product ;
+    nw:productID "4"^^xsd:integer ;
+    nw:productName "Chef Anton's Cajun Seasoning" ;
+    nw:productUnitPrice "22.00"^^xsd:decimal ;
+    nw:unitsInStock "53"^^xsd:integer ;
+    nw:unitsOnOrder "0"^^xsd:integer ;
+    nw:reorderLevel "0"^^xsd:integer ;
+    nw:discontinued "false"^^xsd:boolean ;
+    nw:belongsToCategory nw:category_2 ;
+    nw:suppliedBy nw:supplier_2 .
+
+nw:product_5 a nw:Product ;
+    nw:productID "5"^^xsd:integer ;
+    nw:productName "Chef Anton's Gumbo Mix" ;
+    nw:productUnitPrice "21.35"^^xsd:decimal ;
+    nw:unitsInStock "0"^^xsd:integer ;
+    nw:unitsOnOrder "0"^^xsd:integer ;
+    nw:reorderLevel "0"^^xsd:integer ;
+    nw:discontinued "true"^^xsd:boolean ;
+    nw:belongsToCategory nw:category_2 ;
+    nw:suppliedBy nw:supplier_2 .
+
+nw:product_6 a nw:Product ;
+    nw:productID "6"^^xsd:integer ;
+    nw:productName "Grandma's Boysenberry Spread" ;
+    nw:productUnitPrice "25.00"^^xsd:decimal ;
+    nw:unitsInStock "120"^^xsd:integer ;
+    nw:unitsOnOrder "0"^^xsd:integer ;
+    nw:reorderLevel "25"^^xsd:integer ;
+    nw:discontinued "false"^^xsd:boolean ;
+    nw:belongsToCategory nw:category_2 ;
+    nw:suppliedBy nw:supplier_2 .
+
+nw:product_7 a nw:Product ;
+    nw:productID "7"^^xsd:integer ;
+    nw:productName "Uncle Bob's Organic Dried Pears" ;
+    nw:productUnitPrice "30.00"^^xsd:decimal ;
+    nw:unitsInStock "15"^^xsd:integer ;
+    nw:unitsOnOrder "0"^^xsd:integer ;
+    nw:reorderLevel "10"^^xsd:integer ;
+    nw:discontinued "false"^^xsd:boolean ;
+    nw:belongsToCategory nw:category_3 ;
+    nw:suppliedBy nw:supplier_2 .
+
+nw:product_8 a nw:Product ;
+    nw:productID "8"^^xsd:integer ;
+    nw:productName "Northwoods Cranberry Sauce" ;
+    nw:productUnitPrice "40.00"^^xsd:decimal ;
+    nw:unitsInStock "6"^^xsd:integer ;
+    nw:unitsOnOrder "0"^^xsd:integer ;
+    nw:reorderLevel "0"^^xsd:integer ;
+    nw:discontinued "false"^^xsd:boolean ;
+    nw:belongsToCategory nw:category_2 ;
+    nw:suppliedBy nw:supplier_2 .
+
+# ============================================================
+# ABox — Orders (8)
+# ============================================================
+
+nw:order_10643 a nw:Order ;
+    nw:orderID "10643"^^xsd:integer ;
+    nw:orderDate "1997-08-25T00:00:00"^^xsd:dateTime ;
+    nw:requiredDate "1997-09-22T00:00:00"^^xsd:dateTime ;
+    nw:shippedDate "1997-09-02T00:00:00"^^xsd:dateTime ;
+    nw:freight "29.46"^^xsd:decimal ;
+    nw:placedBy nw:customer_ALFKI ;
+    nw:handledBy nw:employee_1 ;
+    nw:shippedBy nw:shipper_1 ;
+    nw:hasOrderLine nw:ol_10643_1, nw:ol_10643_2, nw:ol_10643_3 .
+
+nw:order_10692 a nw:Order ;
+    nw:orderID "10692"^^xsd:integer ;
+    nw:orderDate "1997-10-03T00:00:00"^^xsd:dateTime ;
+    nw:requiredDate "1997-10-31T00:00:00"^^xsd:dateTime ;
+    nw:shippedDate "1997-10-13T00:00:00"^^xsd:dateTime ;
+    nw:freight "61.02"^^xsd:decimal ;
+    nw:placedBy nw:customer_ALFKI ;
+    nw:handledBy nw:employee_1 ;
+    nw:shippedBy nw:shipper_2 ;
+    nw:hasOrderLine nw:ol_10692_1 .
+
+nw:order_10278 a nw:Order ;
+    nw:orderID "10278"^^xsd:integer ;
+    nw:orderDate "1996-08-12T00:00:00"^^xsd:dateTime ;
+    nw:requiredDate "1996-09-09T00:00:00"^^xsd:dateTime ;
+    nw:shippedDate "1996-08-16T00:00:00"^^xsd:dateTime ;
+    nw:freight "92.69"^^xsd:decimal ;
+    nw:placedBy nw:customer_BERGS ;
+    nw:handledBy nw:employee_2 ;
+    nw:shippedBy nw:shipper_1 ;
+    nw:hasOrderLine nw:ol_10278_1, nw:ol_10278_2 .
+
+nw:order_10444 a nw:Order ;
+    nw:orderID "10444"^^xsd:integer ;
+    nw:orderDate "1997-02-03T00:00:00"^^xsd:dateTime ;
+    nw:requiredDate "1997-03-03T00:00:00"^^xsd:dateTime ;
+    nw:shippedDate "1997-02-28T00:00:00"^^xsd:dateTime ;
+    nw:freight "3.50"^^xsd:decimal ;
+    nw:placedBy nw:customer_BERGS ;
+    nw:handledBy nw:employee_3 ;
+    nw:shippedBy nw:shipper_3 ;
+    nw:hasOrderLine nw:ol_10444_1 .
+
+nw:order_10290 a nw:Order ;
+    nw:orderID "10290"^^xsd:integer ;
+    nw:orderDate "1996-08-27T00:00:00"^^xsd:dateTime ;
+    nw:requiredDate "1996-09-24T00:00:00"^^xsd:dateTime ;
+    nw:shippedDate "1996-09-03T00:00:00"^^xsd:dateTime ;
+    nw:freight "79.70"^^xsd:decimal ;
+    nw:placedBy nw:customer_COMMI ;
+    nw:handledBy nw:employee_2 ;
+    nw:shippedBy nw:shipper_1 ;
+    nw:hasOrderLine nw:ol_10290_1, nw:ol_10290_2 .
+
+nw:order_10363 a nw:Order ;
+    nw:orderID "10363"^^xsd:integer ;
+    nw:orderDate "1996-11-26T00:00:00"^^xsd:dateTime ;
+    nw:requiredDate "1996-12-24T00:00:00"^^xsd:dateTime ;
+    nw:shippedDate "1996-12-04T00:00:00"^^xsd:dateTime ;
+    nw:freight "30.54"^^xsd:decimal ;
+    nw:placedBy nw:customer_DRACD ;
+    nw:handledBy nw:employee_1 ;
+    nw:shippedBy nw:shipper_3 ;
+    nw:hasOrderLine nw:ol_10363_1, nw:ol_10363_2 .
+
+nw:order_10258 a nw:Order ;
+    nw:orderID "10258"^^xsd:integer ;
+    nw:orderDate "1996-07-17T00:00:00"^^xsd:dateTime ;
+    nw:requiredDate "1996-08-14T00:00:00"^^xsd:dateTime ;
+    nw:shippedDate "1996-07-23T00:00:00"^^xsd:dateTime ;
+    nw:freight "140.51"^^xsd:decimal ;
+    nw:placedBy nw:customer_ERNSH ;
+    nw:handledBy nw:employee_3 ;
+    nw:shippedBy nw:shipper_1 ;
+    nw:hasOrderLine nw:ol_10258_1, nw:ol_10258_2, nw:ol_10258_3 .
+
+nw:order_10999 a nw:Order ;
+    nw:orderID "10999"^^xsd:integer ;
+    nw:orderDate "1998-04-03T00:00:00"^^xsd:dateTime ;
+    nw:requiredDate "1998-05-01T00:00:00"^^xsd:dateTime ;
+    nw:freight "65.00"^^xsd:decimal ;
+    nw:placedBy nw:customer_ERNSH ;
+    nw:handledBy nw:employee_3 ;
+    nw:hasOrderLine nw:ol_10999_1 .
+
+# ============================================================
+# ABox — OrderLines (15)
+# ============================================================
+
+nw:ol_10643_1 a nw:OrderLine ;
+    nw:belongsToOrder nw:order_10643 ;
+    nw:includesProduct nw:product_1 ;
+    nw:quantity "15"^^xsd:integer ;
+    nw:olUnitPrice "18.00"^^xsd:decimal ;
+    nw:discount "0.25"^^xsd:float .
+
+nw:ol_10643_2 a nw:OrderLine ;
+    nw:belongsToOrder nw:order_10643 ;
+    nw:includesProduct nw:product_2 ;
+    nw:quantity "21"^^xsd:integer ;
+    nw:olUnitPrice "19.00"^^xsd:decimal ;
+    nw:discount "0.25"^^xsd:float .
+
+nw:ol_10643_3 a nw:OrderLine ;
+    nw:belongsToOrder nw:order_10643 ;
+    nw:includesProduct nw:product_6 ;
+    nw:quantity "2"^^xsd:integer ;
+    nw:olUnitPrice "25.00"^^xsd:decimal ;
+    nw:discount "0.25"^^xsd:float .
+
+nw:ol_10692_1 a nw:OrderLine ;
+    nw:belongsToOrder nw:order_10692 ;
+    nw:includesProduct nw:product_3 ;
+    nw:quantity "20"^^xsd:integer ;
+    nw:olUnitPrice "10.00"^^xsd:decimal ;
+    nw:discount "0.0"^^xsd:float .
+
+nw:ol_10278_1 a nw:OrderLine ;
+    nw:belongsToOrder nw:order_10278 ;
+    nw:includesProduct nw:product_6 ;
+    nw:quantity "16"^^xsd:integer ;
+    nw:olUnitPrice "25.00"^^xsd:decimal ;
+    nw:discount "0.0"^^xsd:float .
+
+nw:ol_10278_2 a nw:OrderLine ;
+    nw:belongsToOrder nw:order_10278 ;
+    nw:includesProduct nw:product_7 ;
+    nw:quantity "15"^^xsd:integer ;
+    nw:olUnitPrice "30.00"^^xsd:decimal ;
+    nw:discount "0.0"^^xsd:float .
+
+nw:ol_10444_1 a nw:OrderLine ;
+    nw:belongsToOrder nw:order_10444 ;
+    nw:includesProduct nw:product_1 ;
+    nw:quantity "12"^^xsd:integer ;
+    nw:olUnitPrice "18.00"^^xsd:decimal ;
+    nw:discount "0.0"^^xsd:float .
+
+nw:ol_10290_1 a nw:OrderLine ;
+    nw:belongsToOrder nw:order_10290 ;
+    nw:includesProduct nw:product_7 ;
+    nw:quantity "20"^^xsd:integer ;
+    nw:olUnitPrice "30.00"^^xsd:decimal ;
+    nw:discount "0.0"^^xsd:float .
+
+nw:ol_10290_2 a nw:OrderLine ;
+    nw:belongsToOrder nw:order_10290 ;
+    nw:includesProduct nw:product_8 ;
+    nw:quantity "10"^^xsd:integer ;
+    nw:olUnitPrice "40.00"^^xsd:decimal ;
+    nw:discount "0.0"^^xsd:float .
+
+nw:ol_10363_1 a nw:OrderLine ;
+    nw:belongsToOrder nw:order_10363 ;
+    nw:includesProduct nw:product_4 ;
+    nw:quantity "24"^^xsd:integer ;
+    nw:olUnitPrice "22.00"^^xsd:decimal ;
+    nw:discount "0.0"^^xsd:float .
+
+nw:ol_10363_2 a nw:OrderLine ;
+    nw:belongsToOrder nw:order_10363 ;
+    nw:includesProduct nw:product_8 ;
+    nw:quantity "5"^^xsd:integer ;
+    nw:olUnitPrice "40.00"^^xsd:decimal ;
+    nw:discount "0.0"^^xsd:float .
+
+nw:ol_10258_1 a nw:OrderLine ;
+    nw:belongsToOrder nw:order_10258 ;
+    nw:includesProduct nw:product_2 ;
+    nw:quantity "50"^^xsd:integer ;
+    nw:olUnitPrice "19.00"^^xsd:decimal ;
+    nw:discount "0.2"^^xsd:float .
+
+nw:ol_10258_2 a nw:OrderLine ;
+    nw:belongsToOrder nw:order_10258 ;
+    nw:includesProduct nw:product_3 ;
+    nw:quantity "65"^^xsd:integer ;
+    nw:olUnitPrice "10.00"^^xsd:decimal ;
+    nw:discount "0.2"^^xsd:float .
+
+nw:ol_10258_3 a nw:OrderLine ;
+    nw:belongsToOrder nw:order_10258 ;
+    nw:includesProduct nw:product_8 ;
+    nw:quantity "6"^^xsd:integer ;
+    nw:olUnitPrice "40.00"^^xsd:decimal ;
+    nw:discount "0.2"^^xsd:float .
+
+nw:ol_10999_1 a nw:OrderLine ;
+    nw:belongsToOrder nw:order_10999 ;
+    nw:includesProduct nw:product_4 ;
+    nw:quantity "18"^^xsd:integer ;
+    nw:olUnitPrice "22.00"^^xsd:decimal ;
+    nw:discount "0.0"^^xsd:float .

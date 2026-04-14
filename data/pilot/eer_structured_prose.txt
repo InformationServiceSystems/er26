@@ -1,0 +1,38 @@
+ENTITY Customer {
+  Attributes: customerID (key), companyName
+}
+
+ENTITY Product {
+  Attributes: productID (key), productName, discontinued
+  Note: A discontinued product cannot appear on a new order.
+}
+
+ENTITY Order {
+  Attributes: orderID (key), orderDate
+  Note: An order must contain at least one order line. An order must be placed before it can be shipped.
+}
+
+WEAK ENTITY OrderLine {
+  Partial key: lineNumber
+  Owner: Order (via RELATIONSHIP Contains)
+  Attributes: quantity, unitPrice
+  Note: The quantity ordered must be a positive integer. The unit price must be non-negative.
+}
+
+RELATIONSHIP Places {
+  Entities: Customer (participation: partial, cardinality: 1),
+            Order (participation: total, cardinality: N)
+  Note: Each order is placed by exactly one customer; a customer may place zero or more orders.
+}
+
+RELATIONSHIP Contains {
+  Entities: Order (participation: total, cardinality: 1),
+            OrderLine (participation: total, cardinality: N)
+  Note: Each order contains one or more order lines; each order line belongs to exactly one order. OrderLine is existence-dependent on Order.
+}
+
+RELATIONSHIP References {
+  Entities: OrderLine (participation: total, cardinality: N),
+            Product (participation: partial, cardinality: 1)
+  Note: Each order line references exactly one product; a product may appear on zero or more order lines.
+}
