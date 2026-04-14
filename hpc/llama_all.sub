@@ -1,0 +1,24 @@
+# HTCondor submit file for Llama-3.1-8B experiments
+# Usage: condor_submit hpc/llama_all.sub
+
+universe                = docker
+docker_image            = nvcr.io/nvidia/pytorch:25.01-py3
+
+executable              = hpc/run_llama.sh
+
+output                  = hpc/logs/llama_all_$(Cluster).out
+error                   = hpc/logs/llama_all_$(Cluster).err
+log                     = hpc/logs/llama_all_$(Cluster).log
+
+# Mount /home NFS into the container
++WantGPUHomeMounted     = true
+
+# GPU request — 1 GPU is enough for 8B model with 4-bit quantization
+request_gpus            = 1
+request_cpus            = 4
+request_memory          = 32G
+request_disk            = 50G
+
+# No extra requirements beyond GPU request
+
+queue

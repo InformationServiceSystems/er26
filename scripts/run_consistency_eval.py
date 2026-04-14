@@ -1,5 +1,20 @@
 # scripts/run_consistency_eval.py
-"""Run consistency evaluation: K runs per task to measure output stability (H2 hypothesis)."""
+"""DEPRECATED: Use --num_runs N on individual runner scripts instead.
+
+Example:
+    python scripts/run_high_formal_local.py --num_runs 5
+    python scripts/run_semi_formal_local.py --num_runs 5
+    python scripts/run_low_formal_local.py --num_runs 5
+
+This script is retained for backward compatibility with existing results only.
+"""
+import warnings
+warnings.warn(
+    "run_consistency_eval.py is deprecated. Use --num_runs N on individual runner scripts instead.",
+    DeprecationWarning, stacklevel=2
+)
+
+# Original: Run consistency evaluation: K runs per task to measure output stability (H2 hypothesis).
 import pandas as pd
 from pathlib import Path
 from tqdm import tqdm

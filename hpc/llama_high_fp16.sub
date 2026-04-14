@@ -1,0 +1,12 @@
+universe                = docker
+docker_image            = nvcr.io/nvidia/pytorch:25.01-py3
+executable              = hpc/run_llama_high_fp16.sh
+output                  = hpc/logs/llama_high_fp16_$(Cluster).out
+error                   = hpc/logs/llama_high_fp16_$(Cluster).err
+log                     = hpc/logs/llama_high_fp16_$(Cluster).log
++WantGPUHomeMounted     = true
+request_gpus            = 1
+request_cpus            = 4
+request_memory          = 32G
+request_disk            = 50G
+queue

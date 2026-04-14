@@ -1,0 +1,617 @@
+\documentclass[runningheads]{llncs}
+
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{url}
+\usepackage{enumitem}
+\usepackage{xcolor}
+
+\title{Formalization Gradient: Empirical Effects of Representation Formality on Local LLM Performance}
+
+\titlerunning{Formalization Gradient}
+
+\author{
+Wolfgang Maass\inst{1} \and
+Veda C. Storey\inst{2} \and
+Stephen W. Liddle\inst{3}
+}
+
+\authorrunning{W. Maass et al.}
+
+\institute{
+German Research Center for Artificial Intelligence (DFKI), Saarbr\"{u}cken, Germany \\
+\email{wolfgang.maass@dfki.de}
+\and
+Georgia State University, Atlanta, GA, USA \\
+\email{vstorey@gsu.edu}
+\and
+Brigham Young University, Provo, UT, USA \\
+\email{liddle@byu.edu}
+}
+
+\begin{document}
+
+\maketitle
+
+% ══════════════════════════════════════════════════════════════
+\begin{abstract}
+Conceptual models vary in their degree of formalization, ranging from fully formal schema languages to semi-formal notations and informal natural-language descriptions. We investigate how this formalization gradient affects the quality and consistency of large language models (LLMs) when they reason over representations at different formalization levels. Using two open-weight models (Mistral-7B-Instruct and Llama-3.1-8B-Instruct), we compare performance across three levels: high-formal (SQL generation from a relational schema), semi-formal (legal clause interpretation from structured contract text), and low-formal (management decision-making from natural-language postmortem scenarios). Each task is executed $K\!=\!5$ times to measure output consistency. Our headline finding is a \emph{variance paradox}: output variance \emph{decreases} monotonically as formalization decreases (Levene's $p < 10^{-76}$), contradicting the intuition that less-structured tasks produce more variable outputs. Formal tasks produce bimodal hit-or-miss distributions, while informal tasks yield consistently moderate quality. We also find that output quality decreases significantly with decreasing formalization (Kruskal-Wallis $p < 10^{-256}$ for all metrics), that models engage $2.2\times$ more active neurons per token on low-formal than high-formal tasks ($p < 10^{-300}$), and that response length partially mediates recall-based quality scores. These findings connect the conceptual modeling tradition of formalization levels to empirical LLM behavior, with implications for AI-assisted modeling, schema-driven code generation, and the automation boundary in model-driven engineering.
+\end{abstract}
+
+\textbf{Keywords:} conceptual modeling, formalization levels, large language models, model-driven engineering, output consistency, variance paradox
+
+% ══════════════════════════════════════════════════════════════
+\section{Introduction}
+\label{sec:intro}
+
+Conceptual modeling has long recognized that representations exist along a formalization spectrum. Mylopoulos \cite{mylopoulos1992conceptual} distinguished \emph{formal}, \emph{semi-formal}, and \emph{informal} representations, arguing that the choice of formalization level determines what operations (verification, transformation, automated reasoning) can be reliably performed over a model. With the rapid adoption of large language models (LLMs) as reasoning engines over structured and unstructured inputs, this classical distinction acquires new practical urgency: does the formalization level of the input representation predict how well an LLM can reason over it?
+
+We operationalize \emph{formalization} as the degree to which a task's input constraints, solution space, and evaluation criteria are explicitly specified. We follow the conceptual modeling tradition where formal representations have precise syntax and semantics, semi-formal representations constrain interpretation without full formality, and informal representations leave both syntax and semantics open \cite{mylopoulos1992conceptual,olive2007conceptual}. At one extreme, SQL generation from a relational schema admits a single correct answer verifiable by execution; the input is a formal conceptual model. At the other extreme, management decisions require weighing competing stakeholder interests with no objectively correct solution; the input is an informal natural-language description. Legal clause interpretation occupies an intermediate position: the clause text constrains the answer but requires interpretive reasoning about scope and exceptions.
+
+\paragraph{Why formalization should matter.}
+There are both empirical and theoretical reasons to expect that LLM performance varies systematically with task formalization. On the training-data side, LLM corpora are dominated by unstructured natural language: GPT-3's pre-training mix allocated 60\% to filtered Common Crawl, 22\% to curated web text, 16\% to books, and 3\% to Wikipedia \cite{brown2020language}, all predominantly prose. However, structured and semi-structured content (code, markup, tables) is deliberately \emph{upsampled} relative to its natural proportion on the web. Llama~3's training mix, for instance, dedicates 17\% of tokens to code and 25\% to mathematical and reasoning data despite these categories comprising a far smaller share of raw web text \cite{dubey2024llama}. This asymmetric exposure creates a plausible prior: models may have internalized the syntactic and semantic regularities of formal languages (SQL, code, logical notation) more deeply per-token than those of open-ended prose, because formal domains exhibit higher regularity-to-volume ratios in the training signal.
+
+On the task side, formalization constrains the output space. A SQL query is either correct or incorrect given a schema; a legal interpretation is bounded by clause text; a management recommendation is underdetermined. As the solution space expands, the model must rely less on pattern matching against training exemplars and more on compositional reasoning over novel combinations of constraints, precisely the capability where current LLMs are known to be weakest \cite{dziri2023faith}.
+
+This paper makes three contributions to the intersection of conceptual modeling and AI:
+\begin{enumerate}[noitemsep]
+  \item We operationalize the classical formal/semi-formal/informal distinction \cite{mylopoulos1992conceptual} as an experimental variable, instantiated with three task types grounded in real-world data: SQL generation from a relational schema (100 tasks), legal clause interpretation (59 tasks), and management decision-making from postmortem scenarios (31 tasks).
+  \item We measure output quality and consistency ($K\!=\!5$ repeated runs) across all three formalization levels using two open-weight models (Mistral-7B and Llama-3.1-8B) running locally on GPU, uncovering a variance paradox where formal tasks produce higher, not lower, output variability.
+  \item We propose a formalization metric framework $F(T)$ that characterizes task formalization along three measurable dimensions, and provide empirical evidence that formalization level significantly predicts both LLM output quality and variance.
+\end{enumerate}
+
+% ══════════════════════════════════════════════════════════════
+\section{Related Work}
+\label{sec:related}
+
+%\paragraph{Formalization in conceptual modeling.}
+The formalization spectrum introduced by Mylopoulos \cite{mylopoulos1992conceptual} has been grounded in ontological theory by Wand and Weber \cite{wand1990ontological}, who showed that the representational faithfulness of a modeling grammar determines what inferences can be validly drawn from models expressed in it. Oliv\'{e} \cite{olive2007conceptual} extended this to show that a schema's semantic precision determines the correctness guarantees available to any reasoning agent operating over it. Together, these results predict that any reasoning system, whether logic-based or statistical, should perform better when operating over more formalized representations, because formalization constrains the space of valid interpretations.
+
+%\paragraph{LLMs and the internal representation of formal structure.}
+The key assumption underlying our work is that LLMs do not merely memorize formal patterns but acquire internal representations that capture the structural regularities of formalized domains. Several lines of evidence support this assumption. LLM training corpora deliberately oversample structured content: Llama~3 devotes 17\% of tokens to code and 25\% to mathematical reasoning \cite{dubey2024llama}, far exceeding their natural web proportion. This concentrated exposure to domains with high syntactic regularity and unambiguous semantics appears to produce disproportionately strong internal representations.
+
+The strongest evidence comes from mathematics, where LLMs have moved beyond benchmark performance to genuine discovery. Romera-Paredes et al.\ \cite{romeraparedes2024funsearch} used an LLM-based search system (FunSearch) to discover new solutions to the cap set problem, a longstanding open problem in extremal combinatorics, representing the first LLM-driven contribution to an unsolved mathematical problem. DeepMind's AlphaProof, which couples a language model with reinforcement learning over the formal proof language Lean, solved four of six problems at the 2024 International Mathematical Olympiad at silver-medal level \cite{alphaproof2024imo}. Most recently, Knuth \cite{knuth2026claude} reported that an LLM discovered a construction for Hamiltonian cycles on a class of directed graphs that Knuth himself had been unable to find, leading him to name the resulting paper ``Claude's Cycles.'' Knuth's case is particularly instructive: the LLM succeeded on a problem with a precise formal structure (directed graphs with well-defined vertex sets and edge rules) where the search space was vast but the solution, once found, could be verified and proven correct.
+
+These successes cluster in domains with high formalization: mathematics \cite{cobbe2021training}, code generation \cite{chen2021evaluating}, and formal proof. In contrast, LLM performance on tasks requiring open-ended reasoning, such as compositional generalization or causal inference, degrades sharply \cite{dziri2023faith}. We term this asymmetry the \emph{formalization hypothesis}: LLM output quality degrades monotonically as task formalization decreases, because less-formalized tasks offer weaker alignment with the structural regularities that LLMs have internalized and require more compositional, open-ended reasoning.
+
+%\paragraph{LLM evaluation and output consistency.}
+Existing benchmarks evaluate LLMs primarily on tasks with well-defined answers \cite{rajpurkar2016squad,chen2021evaluating}. Dziri et al.\ \cite{dziri2023faith} show that LLM success on structured tasks often reflects pattern matching rather than genuine inference, questioning whether benchmark performance generalizes to less-formalized problems. Separately, Ouyang et al.\ \cite{ouyang2023llm} demonstrate that LLM outputs vary across runs even with identical prompts, but the relationship between task structure and output variability remains unexplored. We address both gaps: treating formalization as a continuous dimension and measuring both quality and variance at three points along the gradient.
+
+\subsection{Research Hypotheses}
+\label{sec:hypotheses}
+
+The preceding review motivates three testable hypotheses:
+
+\begin{description}[noitemsep,leftmargin=2em,style=nextline]
+  \item[H1: Quality gradient.] 
+  LLM output quality decreases monotonically as task formalization decreases. This follows from the formalization hypothesis: models trained on corpora that oversample structured content should produce higher-quality outputs when the task's solution space is tightly constrained.
+
+  \item[H2: Variance gradient.]
+    Output variance across repeated runs increases as formalization decreases. The intuition is straightforward: less-constrained tasks give the model more degrees of freedom, so successive runs should diverge more. \emph{(Refuted; see Section~\ref{sec:variance}.)}
+
+  \item[H3: Length--quality mediation.]
+    Response length positively mediates recall-based quality scores across formalization levels. Models that generate longer outputs achieve higher overlap scores partly through increased probability of incidentally matching gold-standard terms, not solely through superior task comprehension. Consequently, controlling for response length should reduce the observed quality gap between models.
+\end{description}
+
+% ══════════════════════════════════════════════════════════════
+\section{Method}
+\label{sec:method}
+
+To test hypotheses H1--H3, we require tasks that differ systematically in the degree to which their inputs constrain the space of acceptable outputs, while holding other design properties constant (self-containedness, expert gold standards, graded complexity). We operationalize formalization along three levels (high, semi, and low) following the classical tripartition in conceptual modeling \cite{mylopoulos1992conceptual}, and select one representative task domain per level. The key design criterion is that each domain must instantiate a distinct point on the formalization spectrum as defined by Wand and Weber \cite{wand1990ontological}: the high-formal task operates over a representation with precise syntax and semantics (a relational schema), admitting a single verifiable answer; the semi-formal task operates over a representation with constrained but interpretable semantics (a contractual clause), admitting a bounded set of defensible answers; and the low-formal task operates over a natural-language narrative with no formal constraints, admitting a wide range of reasonable responses whose quality can only be assessed by coverage of relevant considerations.
+
+\subsection{Formalization Gradient}
+\label{sec:gradient}
+
+We define three formalization levels, each operationalized with a distinct task type:
+
+\begin{description}[style=nextline]
+  \item[High-formal (SQL generation)]
+    Generate the correct SQL query given a relational schema and a natural-language question. The schema has precise syntax (DDL) and model-theoretic semantics; correctness is verifiable by execution \cite{olive2007conceptual,chen2021evaluating}. 100 tasks over the Northwind schema, spanning simple joins to complex multi-table queries with aggregations and subqueries.
+
+  \item[Semi-formal (Legal clause interpretation)]
+    Determine whether a specific action is permitted, required, or prohibited under a contractual clause applied to a factual scenario. The clause text constrains the answer space but requires interpretive reasoning about scope, exceptions, and implicit constraints \cite{mylopoulos1992conceptual}. 59 tasks across 11 clause categories (assignment, termination, liability, confidentiality, etc.), drawn from the Contract Understanding Atticus Dataset (CUAD) of real commercial agreements.
+
+  \item[Low-formal (Management decision-making)]
+    Recommend a management response to a software postmortem incident involving multiple stakeholders, tradeoffs, and genuine ambiguity. No single correct answer exists; quality is assessed by coverage of relevant considerations \cite{mylopoulos1992conceptual}. 31 tasks across 9 incident categories, each derived from a publicly documented incident report (e.g., GitHub's 2018 split-brain outage, Knight Capital's 2012 trading loss). Scenarios are lightly fictionalized while preserving technical and organizational structure. Gold standards enumerate key considerations without prescribing a unique solution.
+\end{description}
+
+\noindent Table~\ref{tab:task-structure} summarizes the concrete input fields, prompt structure, and expected output format for each level.
+
+\begin{table*}[t]
+\centering
+\caption{Task structure by formalization level. Each row shows the input fields provided to the model, the prompt structure, and the expected output format.}
+\label{tab:task-structure}
+\small
+\begin{tabular}{p{1.6cm}p{3.4cm}p{5.6cm}p{3.0cm}}
+\toprule
+Level & Input Fields & Prompt Structure & Expected Output \\
+\midrule
+High-formal &
+  \texttt{schema} (Northwind DDL, shared across all 100 tasks), \texttt{question} (natural-language query) &
+  \texttt{Schema: \{schema\}} $\rightarrow$ \texttt{Question: \{question\}} $\rightarrow$ \texttt{SQL:} &
+  Raw SQL query (no markdown, no explanation) \\
+\addlinespace
+Semi-formal &
+  \texttt{clause\_text} (verbatim contract clause from CUAD), \texttt{scenario} (factual situation), \texttt{question} (legal interpretation question) &
+  \texttt{Contract Clause: \{clause\_text\}} $\rightarrow$ \texttt{Scenario: \{scenario\}} $\rightarrow$ \texttt{Question: \{question\}} $\rightarrow$ \texttt{Answer:} &
+  Legal interpretation citing specific clause terms \\
+\addlinespace
+Low-formal &
+  \texttt{scenario} (postmortem incident), \texttt{stakeholders} (named roles), \texttt{question} (management decision question) &
+  \texttt{Scenario: \{scenario\}} $\rightarrow$ \texttt{Key Stakeholders: \{stakeholders\}} $\rightarrow$ \texttt{Question: \{question\}} $\rightarrow$ \texttt{Analysis and Recommendation:} &
+  Multi-perspective analysis addressing stakeholder interests and tradeoffs \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\subsection{Task Design Principles}
+\label{sec:task-design}
+
+All tasks adhere to the following principles to ensure valid cross-level comparison:
+
+\begin{enumerate}[noitemsep]
+  \item \textbf{Self-contained inputs.} All information required to produce a correct response is contained in the task input. No external knowledge is required.
+  \item \textbf{Gold standards.} Each task has a gold-standard answer.\footnote{High-formal gold standards are independently authored reference SQL queries. Semi-formal and low-formal gold standards were generated by Claude Sonnet 4.6 (Anthropic), a model not under evaluation, following structured annotation prompts that enforce self-containment and traceability to the input text. Expert validation of these gold standards is required before publication; annotation spreadsheets and the scoring protocol are provided in the supplementary materials.} For high-formal tasks, this is the reference SQL query. For semi-formal and low-formal tasks, gold answers provide the reasoning structure and key considerations against which model outputs are evaluated.
+  \item \textbf{Graded complexity.} Tasks within each level span a complexity range (e.g., simple vs.\ complex queries; moderate vs.\ complex management scenarios).
+\end{enumerate}
+
+\subsection{Formalization Metric Framework}
+\label{sec:formalization-metric}
+
+The tripartition into high, semi, and low formalization is grounded in the conceptual modeling literature \cite{mylopoulos1992conceptual}, but for experimental purposes we require a more precise characterization of what makes a task ``more formal.'' We propose a formalization metric $F(T)$ for a task $T$ defined along three measurable dimensions:
+
+\begin{description}[noitemsep,style=nextline]
+  \item[Output-space cardinality $C(T)$.]
+    The number of distinct outputs that would be judged correct for a given input. For SQL generation, $C(T)$ is typically small (one canonical query, plus syntactic variants); for legal interpretation, $C(T)$ is bounded but larger (multiple defensible phrasings of the same legal conclusion); for management decisions, $C(T)$ is effectively unbounded (many reasonable recommendations exist).
+
+  \item[Syntactic constraint density $S(T)$.]
+    The proportion of the output that is determined by syntactic rules of the target language rather than by the model's choice. SQL outputs are heavily constrained by SQL grammar and schema structure; legal interpretations follow loose rhetorical conventions; management recommendations have no syntactic constraints beyond natural language.
+
+  \item[Evaluation decidability $D(T)$.]
+    Whether correctness can be determined algorithmically ($D = 1$, e.g., SQL execution), by bounded expert judgment ($D = 0.5$, e.g., legal clause matching), or only by open-ended expert assessment ($D = 0$, e.g., management quality). This dimension captures the feasibility of automated evaluation.
+\end{description}
+
+\noindent We define $F(T) = \frac{1}{3}\bigl(\hat{C}(T) + S(T) + D(T)\bigr)$, where $\hat{C}(T) = 1 / \log_2(1 + C(T))$ normalizes cardinality to $[0, 1]$ with diminishing returns. In our experiment, the three task types yield approximate values of $F \approx 0.89$ (high-formal), $F \approx 0.50$ (semi-formal), and $F \approx 0.17$ (low-formal), confirming that the operationalization achieves meaningful separation along the gradient. This framework provides a principled basis for future studies to position new task types on the formalization spectrum without relying solely on intuitive categorization.
+
+\subsection{Models}
+\label{sec:models}
+
+We use two open-weight instruction-tuned models:
+
+\begin{itemize}[noitemsep]
+  \item \textbf{Mistral-7B-Instruct-v0.3} \cite{jiang2023mistral}: 7.24B parameters, sliding-window attention, grouped-query attention.
+  \item \textbf{Llama-3.1-8B-Instruct} \cite{dubey2024llama}: 8.03B parameters, RoPE, grouped-query attention, 128K context window.
+\end{itemize}
+
+Both models are run locally on NVIDIA A100 40GB GPUs in FP16 precision via HuggingFace Transformers. Generation uses temperature $T\!=\!0.7$ with a maximum of 2048 new tokens. Each task is executed $K\!=\!5$ times to assess output consistency.
+
+\subsection{Evaluation Metrics}
+\label{sec:metrics}
+
+A central design challenge is selecting metrics that can be applied uniformly across all three formalization levels to enable valid cross-level comparison. Domain-specific metrics exist for individual levels (execution correctness for SQL, inter-annotator agreement for legal interpretation), but these cannot be compared across levels. We therefore adopt a common set of text-overlap metrics that measure how well a model's output recovers the content of an expert gold standard. While coarser than domain-specific alternatives, this approach ensures that observed differences reflect the formalization gradient rather than metric incommensurability.
+
+\paragraph{Quality metrics (predicted vs.\ gold standard).}
+We measure three complementary facets of content recall against gold standards:
+
+\begin{itemize}[noitemsep]
+  \item \textbf{Word overlap}: $|W_{\text{pred}} \cap W_{\text{gold}}| \,/\, |W_{\text{gold}}|$, where $W$ is the set of unique lowercased words. This captures broad topical coverage: does the response mention the same concepts as the gold standard?
+  \item \textbf{Bigram overlap}: analogous to word overlap but computed over word bigrams. By requiring adjacent-word matches, this metric is sensitive to phrasal structure and penalizes responses that use the right vocabulary in the wrong combinations. This is an important distinction for SQL (e.g., \texttt{GROUP BY} vs.\ separate occurrences of \texttt{GROUP} and \texttt{BY}) and legal language (e.g., ``material breach'' vs.\ unrelated uses of ``material'' and ``breach'').
+  \item \textbf{Key-term recall}: fraction of distinctive gold-standard words (length $> 3$, excluding common stopwords) present in the predicted output. This focuses evaluation on domain-specific content words (table names, legal terms, stakeholder labels) that carry the most discriminative information.
+\end{itemize}
+
+All three metrics are recall-oriented: they measure what fraction of the gold standard is recovered, not what fraction of the prediction is relevant. This design choice is deliberate, as it tests whether the model identifies the right content, but it introduces a known bias toward verbose responses (see H3 and Section~\ref{sec:limitations}).
+
+\paragraph{Consistency metrics ($K\!=\!5$ runs).}
+To test H2, we need metrics that capture whether the model produces stable outputs under repeated sampling. We measure:
+
+\begin{itemize}[noitemsep]
+  \item \textbf{Unique outputs}: number of distinct responses across $K$ runs per task (after lowercasing and whitespace normalization). A value of $K$ indicates complete inconsistency; a value of 1 indicates perfect reproducibility.
+  \item \textbf{Perfect consistency}: percentage of tasks producing identical output across all $K$ runs. This is the strictest consistency criterion and provides a lower bound on deployment reliability.
+\end{itemize}
+
+\subsection{Statistical Tests}
+\label{sec:stats}
+
+Shapiro-Wilk tests reject normality for all quality metric distributions, ruling out parametric methods (ANOVA, $t$-tests) that assume normally distributed data. We therefore adopt a non-parametric pipeline that operates on ranks rather than raw values.
+
+The pipeline proceeds in four steps. First, a \textbf{Kruskal-Wallis $H$ test} (the non-parametric analogue of one-way ANOVA) tests whether the central tendencies of quality scores differ across the three formalization levels, providing the omnibus test of H1. A significant result establishes that a difference exists somewhere among the three groups but does not identify which transitions drive it.
+
+Second, \textbf{Mann-Whitney $U$ tests} follow up with pairwise comparisons (high vs.\ semi, semi vs.\ low, high vs.\ low) to localize the effect. Because three simultaneous comparisons inflate the false-positive rate to ${\sim}14\%$ at $\alpha\!=\!0.05$, we apply Bonferroni correction ($k\!=\!3$). The two theoretically motivated transitions (high$\to$semi and semi$\to$low) are the primary comparisons of interest.
+
+Third, \textbf{Levene's test} addresses H2 by testing whether the \emph{spread} of quality scores, not just their central tendency, differs across formalization levels. Levene's test is preferred over Bartlett's test precisely because it is robust to the non-normality already established by the Shapiro-Wilk results.
+
+Fourth, \textbf{rank-biserial correlation $r$} quantifies the practical magnitude of each pairwise effect on a $[-1, +1]$ scale, where $0$ indicates no difference and $\pm 1$ indicates complete separation between groups. With sufficient sample size, trivially small differences can reach statistical significance; the effect size distinguishes statistically detectable effects from practically meaningful ones.
+
+\subsection{Human Evaluation Protocol}
+\label{sec:human-eval}
+
+While the automated overlap metrics enable large-scale comparison, they are proxies for semantic quality. To validate the formalization gradient with human judgment, we design a unified 0--3 expert rubric applicable across all three levels:
+
+\begin{description}[noitemsep]
+  \item[3 (Excellent):] Correct and complete. For SQL: executes correctly and returns the right result set. For legal: identifies all applicable provisions and reaches the correct conclusion. For management: covers all key stakeholders and tradeoffs identified in the gold standard.
+  \item[2 (Adequate):] Substantially correct with minor gaps. Misses secondary considerations but captures the core answer.
+  \item[1 (Partial):] Captures some relevant content but misses major elements or contains significant errors.
+  \item[0 (Incorrect):] Wrong answer, irrelevant content, or failure to address the task.
+\end{description}
+
+\noindent Each output is scored independently by two annotators; inter-annotator agreement is measured by Cohen's kappa (target $\kappa \geq 0.70$). A stratified sample of 30 outputs per level (10 per level $\times$ 3 formalization levels, balanced across models and complexity tags) is scored in a pilot round to calibrate the rubric before full annotation. Expert evaluation is planned as follow-up work (Section~\ref{sec:human-results}).
+
+% ══════════════════════════════════════════════════════════════
+\section{Implementation}
+\label{sec:implementation}
+
+\subsection{Infrastructure}
+\label{sec:infrastructure}
+
+Experiments run on an HTCondor-managed HPC cluster at Saarland University. Each job uses a Docker container (\texttt{nvcr.io/nvidia/pytorch:25.01-py3}) with one NVIDIA A100 40GB GPU, 4 CPUs, 32GB RAM, and 50GB disk. All inference is performed locally; no API calls to external services are used.
+
+\subsection{Model Wrapper}
+\label{sec:model-wrapper}
+
+All inference flows through a unified \texttt{LocalChatModel} class that handles model loading, prompt formatting (chat templates), and generation. The wrapper:
+
+\begin{enumerate}[noitemsep]
+  \item Loads the model in FP16 with HuggingFace \texttt{AutoModelForCausalLM}.
+  \item Applies the model's chat template for instruction formatting.
+  \item Strips the input prompt from the generated output to isolate the model's response.
+\end{enumerate}
+
+\subsection{Repeated Runs}
+\label{sec:repeated-runs}
+
+Each task is executed $K\!=\!5$ times with identical prompts and temperature ($T\!=\!0.7$). Results are stored in JSONL format with a \texttt{run\_index} field (0--4) to enable consistency analysis. A bootstrap power analysis confirms that $K\!=\!5$ provides sufficient statistical power: even $K\!=\!1$ yields significance $99.6\%$ of the time for the cross-level Kruskal-Wallis test.
+
+% ══════════════════════════════════════════════════════════════
+\section{Results}
+\label{sec:results}
+
+\subsection{Dataset Summary}
+
+Table~\ref{tab:dataset} summarizes the experimental data. The 190 unique tasks, each executed $K\!=\!5$ times per model, yield 1,900 total records. Response length increases monotonically with decreasing formalization for both models, reflecting the shift from terse SQL to extended prose.
+
+\begin{table}[h]
+\centering
+\caption{Dataset summary across formalization levels and models.}
+\label{tab:dataset}
+\begin{tabular}{llrrrr}
+\toprule
+Level & Model & Tasks & $K$ & Records & Avg Resp.\ Len \\
+\midrule
+High-formal & Llama-3.1-8B   & 100 & 5 & 500 & 967 \\
+High-formal & Mistral-7B     & 100 & 5 & 500 & 212 \\
+Semi-formal & Llama-3.1-8B   &  59 & 5 & 295 & 2{,}357 \\
+Semi-formal & Mistral-7B     &  59 & 5 & 295 & 833 \\
+Low-formal  & Llama-3.1-8B   &  31 & 5 & 155 & 2{,}908 \\
+Low-formal  & Mistral-7B     &  31 & 5 & 155 & 2{,}557 \\
+\midrule
+\multicolumn{2}{l}{Total} & 190 & & 1{,}900 & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Quality Across Formalization Levels (H1)}
+\label{sec:quality}
+
+Table~\ref{tab:quality} presents quality metrics across all conditions. All three overlap metrics decline monotonically from high to low formalization for both models.
+
+\begin{table}[h]
+\centering
+\caption{Quality metrics by formalization level and model. All overlap metrics computed against gold standards. Pred/Gold is the ratio of mean prediction length to mean gold-standard length (characters).}
+\label{tab:quality}
+\begin{tabular}{llrrrrr}
+\toprule
+Level & Model & $N$ & Word$\uparrow$ & Bigram$\uparrow$ & KeyTerm$\uparrow$ & Pred/Gold \\
+\midrule
+High  & Llama   & 500 & .779 & .457 & .792 & 4.5$\times$ \\
+High  & Mistral & 500 & .716 & .353 & .745 & 1.0$\times$ \\
+Semi  & Llama   & 295 & .316 & .084 & .163 & 1.7$\times$ \\
+Semi  & Mistral & 295 & .240 & .056 & .116 & 0.6$\times$ \\
+Low   & Llama   & 155 & .259 & .060 & .200 & 0.6$\times$ \\
+Low   & Mistral & 155 & .259 & .060 & .202 & 0.6$\times$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Formalization gradient.}
+Quality decreases monotonically with formalization. Averaging across models, word overlap drops from $.748$ (high) to $.278$ (semi) to $.259$ (low); bigram overlap drops from $.405$ to $.070$ to $.060$; key-term recall drops from $.769$ to $.139$ to $.201$. The Kruskal-Wallis test confirms this gradient is highly significant for all metrics (Table~\ref{tab:kruskal}).
+
+\begin{table}[h]
+\centering
+\caption{Kruskal-Wallis test for quality differences across formalization levels.}
+\label{tab:kruskal}
+\begin{tabular}{lrrl}
+\toprule
+Metric & $H$ & $p$ & \\
+\midrule
+Word overlap    & 1374.16 & $4.0 \times 10^{-299}$ & *** \\
+Bigram overlap  & 1176.02 & $4.3 \times 10^{-256}$ & *** \\
+Key-term recall & 1459.04 & $< 10^{-300}$ & *** \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Pairwise comparisons.}
+Mann-Whitney $U$ tests with Bonferroni correction ($k\!=\!3$) reveal that the dominant quality drop occurs between high-formal and semi-formal levels ($p < 10^{-190}$ for all metrics, rank-biserial $|r| > 0.88$), while the semi-to-low transition shows smaller and metric-dependent differences (Table~\ref{tab:pairwise}). Notably, the semi-to-low transition is not significant for word overlap ($p = 1.00$) but is significant for bigram overlap and key-term recall, with key-term recall showing a \emph{reversal} (low $>$ semi).
+
+\begin{table}[h]
+\centering
+\caption{Pairwise Mann-Whitney $U$ tests (Bonferroni-corrected, $k\!=\!3$). Effect size $r$ is rank-biserial correlation.}
+\label{tab:pairwise}
+\begin{tabular}{llrrrrl}
+\toprule
+Metric & Comparison & $\Delta$ & $U$ & $p_{\text{corr}}$ & $r$ & \\
+\midrule
+Word$\uparrow$
+  & High vs Semi & $+.470$ & 583{,}449 & $6.9 \times 10^{-233}$ & $-.978$ & *** \\
+  & High vs Low  & $+.489$ & 309{,}138 & $3.6 \times 10^{-154}$ & $-.994$ & *** \\
+  & Semi vs Low  & $+.019$ & 91{,}717 & $1.00$ & $-.003$ & ns \\
+\midrule
+Bigram$\uparrow$
+  & High vs Semi & $+.335$ & 556{,}196 & $3.2 \times 10^{-191}$ & $-.885$ & *** \\
+  & High vs Low  & $+.345$ & 301{,}707 & $9.2 \times 10^{-140}$ & $-.946$ & *** \\
+  & Semi vs Low  & $+.010$ & 61{,}812 & $3.8 \times 10^{-15}$ & $+.324$ & *** \\
+\midrule
+KeyTerm$\uparrow$
+  & High vs Semi & $+.630$ & 588{,}506 & $3.0 \times 10^{-241}$ & $-.995$ & *** \\
+  & High vs Low  & $+.568$ & 309{,}502 & $4.3 \times 10^{-155}$ & $-.997$ & *** \\
+  & Semi vs Low  & $-.062$ & 35{,}720 & $1.2 \times 10^{-50}$ & $+.609$ & *** \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Output Variance Across Formalization Levels (H2)}
+\label{sec:variance}
+
+Levene's test reveals that output variance \emph{decreases} monotonically with decreasing formalization ($p < 10^{-76}$ for all quality metrics; Table~\ref{tab:levene}), contradicting the intuition that less-constrained tasks should produce more variable outputs.
+
+\begin{table}[h]
+\centering
+\caption{Levene's test for equality of variances across formalization levels.}
+\label{tab:levene}
+\begin{tabular}{lrrrrrl}
+\toprule
+Metric & $W$ & $p$ & Var$_{\text{High}}$ & Var$_{\text{Semi}}$ & Var$_{\text{Low}}$ & \\
+\midrule
+Word overlap    & 190.99 & $2.7 \times 10^{-76}$  & .0218 & .0111 & .0008 & *** \\
+Bigram overlap  & 643.84 & $3.9 \times 10^{-214}$ & .0604 & .0066 & .0002 & *** \\
+Key-term recall & 191.12 & $2.4 \times 10^{-76}$   & .0232 & .0116 & .0008 & *** \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The variance ratio is striking: high-formal word overlap variance is $27\times$ larger than low-formal (.0218 vs.\ .0008). The IQR follows the same pattern: $.204/.112/.041$ (word overlap) from high to low. High-formal tasks produce a bimodal distribution---either close to the gold SQL or completely wrong---while low-formal tasks consistently cover similar conceptual ground even when wording differs.
+
+\subsection{Output Consistency ($K\!=\!5$)}
+\label{sec:consistency}
+
+Neither model achieves meaningful lexical consistency across runs. Nearly every task produces $K$ unique outputs across $K\!=\!5$ runs (average unique outputs $\approx 5.0$ for all conditions except Mistral on high-formal SQL, where the average is 3.8). The only exception is Mistral-7B on high-formal SQL, where 7 out of 100 tasks (7\%) produce identical outputs across all runs. Perfect consistency is 0\% for all other level--model combinations. This near-zero consistency at $T\!=\!0.7$ holds regardless of formalization level.
+
+\subsection{Computational Efficiency Across Formalization Levels}
+\label{sec:efficiency}
+
+Beyond output quality, we examine whether formalization level affects the model's internal computational demands. During inference, we instrument each model's MLP layers to record the average number of activated neurons per token (activation magnitude above a threshold of 0.01). Table~\ref{tab:efficiency} reports these measurements.
+
+\begin{table}[h]
+\centering
+\caption{Computational efficiency by formalization level and model. Neurons/token is the mean number of active MLP neurons per generated token. Activation~\% is the proportion of MLP neurons exceeding the activation threshold.}
+\label{tab:efficiency}
+\begin{tabular}{llrrrr}
+\toprule
+Level & Model & $N$ & Neurons/Token & Activation \% & Tokens \\
+\midrule
+High  & Llama   & 500 & 1{,}181{,}060 & 95.35 & 1{,}663 \\
+High  & Mistral & 500 & 1{,}014{,}196 & 93.15 & 2{,}165 \\
+Semi  & Llama   & 295 & 2{,}307{,}089 & 95.25 &   911 \\
+Semi  & Mistral & 295 & 1{,}386{,}380 & 93.26 &   639 \\
+Low   & Llama   & 155 & 2{,}531{,}074 & 95.28 &   846 \\
+Low   & Mistral & 155 & 2{,}275{,}496 & 93.28 &   898 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The number of active neurons per token increases monotonically with decreasing formalization. Averaging across models, neurons per token rises from ${\sim}1.10\text{M}$ (high) to ${\sim}1.85\text{M}$ (semi) to ${\sim}2.40\text{M}$ (low)---a $2.2\times$ increase from high-formal to low-formal. This gradient is highly significant (Kruskal-Wallis $H = 1438.86$, $p < 10^{-300}$) and robust within each model individually (Mistral: $H = 777.89$, $p < 10^{-169}$; Llama: $H = 746.63$, $p < 10^{-162}$). All pairwise transitions are significant after Bonferroni correction ($p < 10^{-57}$).
+
+In contrast, the \emph{proportion} of active neurons (Activation~\%) is virtually constant across formalization levels within each model (Mistral: $93.15$--$93.28\%$; Llama: $95.25$--$95.35\%$). The Kruskal-Wallis test for activation percentage is not significant ($H = 3.77$, $p = 0.15$). The activation percentage differs between models but not between levels, indicating that the proportion of the network engaged is a model-level property rather than a task-level one. What changes with formalization is the \emph{intensity} of computation per token, not the breadth of network engagement.
+
+\subsection{Model Comparison and Length--Quality Mediation (H3)}
+\label{sec:model-comparison}
+
+Llama-3.1-8B significantly outperforms Mistral-7B on all quality metrics at the high-formal and semi-formal levels (Mann-Whitney $U$, Bonferroni-corrected $p < 10^{-5}$, rank-biserial $r = 0.19$--$0.48$). However, the two models converge at the low-formal level, with no significant difference on any metric ($p > 0.99$). As predicted by H3, Llama produces substantially longer output where it outperforms: $4.5\times$ the gold-standard length on high-formal tasks vs.\ Mistral's $1.0\times$ (Table~\ref{tab:quality}). The length differential disappears at the low-formal level ($0.6\times$ for both models), precisely where the quality gap also vanishes. Both models exhibit the same directional quality gradient from high to low formalization, confirming that this pattern is not model-specific.
+
+\subsection{Within-Domain Formalization Analysis}
+\label{sec:within-domain}
+
+A potential confound in the cross-level comparison is that the three formalization levels use different task domains, so observed quality differences might reflect domain difficulty rather than formalization per se. To address this, we exploit the complexity tags embedded in our task sets to test whether the formalization gradient operates \emph{within} a single domain.
+
+\paragraph{High-formal (SQL).}
+The 100 SQL tasks are tagged by difficulty: easy (20 tasks), medium (55 tasks), and hard (25 tasks). Easy queries have a more constrained output space ($C(T)$ closer to 1) than hard multi-table queries where multiple valid join strategies exist. Word overlap declines from $.832$ (easy) to $.740$ (medium) to $.696$ (hard), mirroring the cross-level pattern within a single domain.
+
+\paragraph{Low-formal (management).}
+The 31 management tasks span two complexity levels (moderate and complex). Complex scenarios, which involve more stakeholders and competing objectives, yield lower gold-standard overlap ($.252$ vs.\ $.268$ for moderate), consistent with the prediction that expanding the solution space reduces overlap-based quality.
+
+These within-domain results strengthen the claim that formalization, not domain, drives the quality gradient. The effect size is smaller within domains than across domains, as expected, since the within-domain formalization range is narrower.
+
+\subsection{Human Evaluation}
+\label{sec:human-results}
+
+The unified 0--3 expert rubric described in Section~\ref{sec:human-eval} has not yet been applied to the experimental outputs. A stratified sample of 30 outputs (10 per formalization level, balanced across models and complexity tags) will be scored independently by two annotators in a pilot round to calibrate the rubric, followed by full annotation across the complete dataset. Inter-annotator agreement will be assessed via Cohen's kappa (target $\kappa \geq 0.70$). Until expert evaluation is complete, the findings reported in this paper rest on the automated overlap metrics, whose limitations are discussed in Section~\ref{sec:limitations}.
+
+\subsection{Gold-Standard Robustness}
+\label{sec:gold-robustness}
+
+A potential threat to construct validity arises when gold standards are generated by the same model family under evaluation, as stylistic self-similarity can inflate recall-based overlap metrics independently of task comprehension. In this study, high-formal gold standards are independently authored reference SQL queries. Semi-formal and low-formal gold standards were generated by Claude Sonnet 4.6 (Anthropic), a model architecturally and organizationally independent of both models under evaluation (Mistral-7B and Llama-3.1-8B). This eliminates self-referential contamination: neither evaluated model could benefit from stylistic overlap with its own prior outputs in the gold standard. Additionally, the structured annotation prompts enforce self-containment (all gold-standard content must be traceable to the input text) and explicit reasoning structure, reducing the influence of model-specific stylistic preferences on the gold answers. The quality gradient (H1) is consistent across all three levels, including the independently authored high-formal SQL, further supporting the robustness of the finding.
+
+% ══════════════════════════════════════════════════════════════
+\section{Discussion}
+\label{sec:discussion}
+
+\subsection{The Variance Paradox: Formalization Raises the Ceiling but Widens the Distribution}
+
+The study's most counterintuitive finding is the refutation of H2. Output variance \emph{decreases} monotonically as formalization decreases ($p < 10^{-76}$, Table~\ref{tab:levene}), the opposite of what the degrees-of-freedom intuition predicts. The mechanism is straightforward:
+
+\begin{itemize}[noitemsep]
+  \item \textbf{High-formal}: SQL generation produces bimodal outcomes. Either the model generates a query close to the gold standard or it diverges substantially (wrong table joins, different query strategies). This hit-or-miss pattern creates high variance in overlap metrics.
+  \item \textbf{Low-formal}: Management decisions consistently cover the same conceptual territory (stakeholders, tradeoffs, risks) even when wording differs across runs. The overlap with the gold standard is consistently moderate, yielding low variance.
+\end{itemize}
+
+\noindent Formal tasks yield higher mean quality \emph{and} higher variance; informal tasks yield lower mean quality \emph{but} more predictable outcomes. This decoupling of mean and variance has direct implications for deployment: organizations should expect bimodal outcomes when deploying LLMs on schema-driven tasks and build in verification and retry mechanisms rather than assuming that high average quality implies consistent quality.
+
+\subsection{H1 Supported: The Formalization Gradient Is Real and Measurable}
+
+Formalization level significantly predicts output quality, with all three overlap metrics declining monotonically from high to low formalization ($p < 10^{-256}$, Table~\ref{tab:kruskal}). H1 is thus supported. This is not merely an artifact of domain difficulty: the within-domain analysis (Section~\ref{sec:within-domain}) shows the same pattern within SQL tasks (easy to hard queries) and within management tasks (moderate to complex scenarios), confirming that formalization, not domain, drives the gradient. The quality decline reflects the increasing size of the acceptable solution space as formalization decreases---precisely the mechanism that Wand and Weber \cite{wand1990ontological} identified as the core function of formalization: constraining the set of valid interpretations available to a reasoning agent.
+
+This result provides empirical support for a prediction implicit in the conceptual modeling literature: that the precision of a representation's semantics determines the quality of automated reasoning over it \cite{olive2007conceptual}. Where previous work established this for logic-based reasoning systems, our data show that the same principle extends to statistical reasoning via LLMs, despite their fundamentally different inference mechanism.
+
+\subsection{Computational Effort Scales Inversely with Formalization}
+
+The neuron activation analysis (Section~\ref{sec:efficiency}) reveals that models engage $2.2\times$ more active neurons per token on low-formal tasks than on high-formal tasks ($p < 10^{-300}$). This provides a computational correlate of the formalization gradient: less-formalized inputs require more internal processing per token, even though the \emph{proportion} of the network activated remains constant ($p = 0.15$, not significant across levels). The distinction is important: formalization does not change \emph{how much} of the network is engaged, but \emph{how intensely} each engaged neuron fires. This is consistent with the hypothesis that formal inputs activate well-rehearsed patterns (SQL syntax, schema structure) that can be processed with low per-neuron effort, while informal inputs require the same network regions to perform more effortful compositional reasoning.
+
+\subsection{Consistency Remains an Open Problem}
+
+The near-complete absence of output consistency across $K\!=\!5$ runs---even on high-formal SQL tasks with objectively correct answers---highlights a fundamental challenge for LLM deployment. At temperature $T\!=\!0.7$, both models generate semantically similar but lexically distinct outputs on nearly every run. The 7\% perfect consistency achieved by Mistral on SQL (vs.\ 0\% for Llama) likely reflects Mistral's more concise output style, which leaves less room for lexical variation.
+
+\subsection{H3 Partially Supported: Response Length Mediates Quality Scores}
+
+H3 predicted that response length positively mediates recall-based quality scores. The evidence is directionally consistent: the quality gap between models is largest where the length differential is largest (high-formal: Llama $4.5\times$ vs.\ Mistral $1.0\times$ the gold-standard length) and vanishes where both models produce equally concise responses (low-formal: $0.6\times$ for both). However, full confirmation requires precision-based metrics that penalize irrelevant content.
+
+\subsection{The Pairwise Comparison Anomaly}
+
+The pairwise results (Table~\ref{tab:pairwise}) reveal that the dominant quality drop occurs at the high-to-semi boundary, with semi-formal and low-formal tasks occupying a similar quality plateau for word overlap ($p = 1.00$). Key-term recall shows a significant \emph{reversal} at the semi-to-low transition ($\Delta = -.062$, $r = +.609$), with low-formal tasks achieving higher key-term recall than semi-formal tasks. This likely reflects the difference in gold-standard vocabulary: legal clause gold answers contain specialized legal terminology that models rarely reproduce, while management gold answers use more general analytical vocabulary that models match more easily.
+
+\subsection{Implications for Conceptual Modeling and Model-Driven Engineering}
+
+\paragraph{The automation boundary.}
+The formalization gradient quantifies where LLM-based automation becomes unreliable. High-formal tasks grounded in relational schemas yield the highest quality, supporting the use of LLMs for schema-driven code generation, query synthesis, and model transformation \cite{olive2007conceptual}. Semi-formal tasks show a substantial quality decline---word overlap drops by over 60\% relative to the high-formal level---indicating that LLM-assisted reasoning over semi-formal notations (UML constraints, business rules) requires careful verification. The quality plateau between semi-formal and low-formal levels suggests that the dominant automation boundary lies at the high-to-semi transition.
+
+\paragraph{Formalization as an investment with measurable returns.}
+Our data show that the marginal quality gain from increasing formalization is quantifiable: each step up the formalization ladder yields a statistically significant improvement in LLM output quality. Investing in more formal representations---converting natural-language requirements into structured schemas or formalizing business rules into constraint languages---pays measurable dividends when LLMs are used as downstream reasoning engines.
+
+\paragraph{The variance paradox and schema design.}
+The counterintuitive finding that formal tasks produce \emph{higher} output variance has implications for schema-driven AI tools. Designers of LLM-powered query generators should expect bimodal output distributions (correct vs.\ completely wrong) rather than gradual degradation, and build verification mechanisms accordingly. This supports the principle that formal representations enable automated verification \cite{wand1990ontological}, but adds the nuance that such verification is not merely desirable but \emph{necessary} when LLMs operate over formal models.
+
+\paragraph{Computational cost of informality.}
+The $2.2\times$ increase in per-token neuron activation from high-formal to low-formal tasks (Section~\ref{sec:efficiency}) suggests that informality is computationally expensive for LLMs. This has practical implications for resource provisioning: batch processing of informal tasks will require proportionally more compute per token than formal tasks, even at the same sequence length. It also suggests that the benefits of formalization extend beyond output quality to inference efficiency.
+
+% ══════════════════════════════════════════════════════════════
+\section{Limitations}
+\label{sec:limitations}
+
+\begin{enumerate}
+  \item \textbf{Primarily automated metrics.} The main results rely on text-overlap metrics (word overlap, bigram overlap, key-term recall), which are proxies for semantic quality. Expert annotation using the unified 0--3 rubric (Section~\ref{sec:human-results}) is planned but not yet completed; until then, the findings lack independent validation by human judgment.
+
+  \item \textbf{Recall-biased overlap metrics.} The overlap metrics divide by $|W_{\text{gold}}|$, measuring recall of gold-standard content. They do not penalize irrelevant content in the prediction. Llama's higher scores may partly reflect its greater verbosity rather than superior understanding.
+
+  \item \textbf{Two models at similar scale.} Both models are 7--8B parameters. The findings may not generalize to larger models (70B+), where better instruction following and richer internal representations could alter the formalization gradient.
+
+  \item \textbf{Unbalanced task counts.} High-formal has 100 tasks, semi-formal 59, and low-formal 31. While bootstrap analysis confirms sufficient power ($K\!=\!1$ achieves $99.6\%$ significance rate), the low-formal condition would benefit from additional tasks to improve between-task variance estimation (ICC $= 0.47$ vs.\ $0.73$ for high-formal).
+
+  \item \textbf{Single temperature setting.} All experiments use $T\!=\!0.7$. Temperature directly affects output consistency; testing at $T\!=\!0$ (greedy) and $T\!=\!1.0$ would reveal whether the variance paradox persists across sampling strategies.
+
+  \item \textbf{LLM-generated gold standards.} Semi-formal and low-formal gold answers were generated by Claude Sonnet 4.6, not by domain experts. While this eliminates self-referential contamination (Section~\ref{sec:gold-robustness}), LLM-generated gold standards may exhibit systematic biases in reasoning structure or terminology that differ from expert judgment. Expert validation of these gold standards is in progress; until completed, the overlap metrics for semi-formal and low-formal levels should be interpreted with caution.
+
+  \item \textbf{No causal claims.} The study is observational. We cannot determine whether formalization \emph{causes} quality differences or whether confounded task properties (domain, length, complexity) drive the observed gradient.
+\end{enumerate}
+
+% ══════════════════════════════════════════════════════════════
+\section{Conclusion}
+\label{sec:conclusion}
+
+Of the three hypotheses, one is supported, one is partially supported, and one is refuted. H1 (quality gradient) is confirmed: output quality declines monotonically with formalization ($p < 10^{-256}$). H3 (length--quality mediation) is partially supported: the quality gap between models covaries with the response-length differential, but full confirmation requires precision-based metrics. H2 (variance gradient) is refuted, yielding the study's most counterintuitive finding: output variance \emph{decreases} rather than increases with decreasing formalization ($p < 10^{-76}$). Formal tasks produce bimodal hit-or-miss distributions, while informal tasks yield consistently moderate quality.
+
+Beyond the hypothesized effects, neuron activation analysis reveals that models engage $2.2\times$ more active neurons per token on low-formal tasks than on high-formal tasks ($p < 10^{-300}$), while the proportion of the network activated remains constant across levels. Informality is computationally expensive: less-formalized inputs require more intensive per-token processing even though the same fraction of the network is engaged.
+
+This variance paradox reframes the relationship between formalization and LLM reliability. Formalization raises the ceiling (higher mean quality) but also widens the distribution (higher variance). Organizations deploying LLMs on schema-driven tasks should expect bimodal outcomes rather than gradual degradation, and design verification mechanisms accordingly.
+
+For the conceptual modeling community, these results establish that the classical formal/semi-formal/informal distinction \cite{mylopoulos1992conceptual} is not merely a taxonomic convenience but a predictor of LLM output quality, output variability, and computational cost. The formalization metric framework $F(T)$ proposed in this paper provides a principled basis for quantifying where a task sits on the formalization gradient and, consequently, what quality, variance, and efficiency profile to expect from LLM-based automation.
+
+Several questions remain open. The pairwise comparisons show that the dominant quality drop occurs at the high-to-semi boundary, with semi-formal and low-formal tasks occupying a similar quality plateau for word overlap. The key-term recall reversal (low-formal $>$ semi-formal) suggests that the formalization gradient interacts with domain-specific vocabulary in ways that recall-based metrics cannot fully disentangle. Expert evaluation using the unified rubric (Section~\ref{sec:human-results}) and investigation at larger model scales are needed to determine whether the variance paradox and computational efficiency gradient persist across evaluation methods and model capacities.
+
+% ══════════════════════════════════════════════════════════════
+\begin{thebibliography}{99}
+
+\bibitem[Chen et~al., 2021]{chen2021evaluating}
+Chen, M., Tworek, J., Jun, H., et~al. (2021).
+\newblock Evaluating large language models trained on code.
+\newblock \emph{arXiv preprint arXiv:2107.03374}.
+\newblock \url{https://arxiv.org/abs/2107.03374}
+
+\bibitem[Cobbe et~al., 2021]{cobbe2021training}
+Cobbe, K., Kosaraju, V., Bavarian, M., et~al. (2021).
+\newblock Training verifiers to solve math word problems.
+\newblock \emph{arXiv preprint arXiv:2110.14168}.
+\newblock \url{https://arxiv.org/abs/2110.14168}
+
+\bibitem[Dubey et~al., 2024]{dubey2024llama}
+Dubey, A., Jauhri, A., Pandey, A., et~al. (2024).
+\newblock The {L}lama 3 herd of models.
+\newblock \emph{arXiv preprint arXiv:2407.21783}.
+\newblock \url{https://arxiv.org/abs/2407.21783}
+
+\bibitem[Jiang et~al., 2023]{jiang2023mistral}
+Jiang, A.~Q., Sablayrolles, A., Mensch, A., et~al. (2023).
+\newblock Mistral 7{B}.
+\newblock \emph{arXiv preprint arXiv:2310.06825}.
+\newblock \url{https://arxiv.org/abs/2310.06825}
+
+\bibitem[Ouyang et~al., 2023]{ouyang2023llm}
+Ouyang, S., Zhang, J.~M., Harman, M., and Wang, M. (2023).
+\newblock {LLM} is like a box of chocolates: the non-determinism of {ChatGPT} in code generation.
+\newblock \emph{arXiv preprint arXiv:2308.02828}.
+\newblock \url{https://arxiv.org/abs/2308.02828}
+
+\bibitem[Rajpurkar et~al., 2016]{rajpurkar2016squad}
+Rajpurkar, P., Zhang, J., Lopyrev, K., and Liang, P. (2016).
+\newblock {SQuAD}: 100,000+ questions for machine comprehension of text.
+\newblock In \emph{Proceedings of EMNLP}, pp.\ 2383--2392.
+\newblock \url{https://aclanthology.org/D16-1264}
+
+\bibitem[Brown et~al., 2020]{brown2020language}
+Brown, T.~B., Mann, B., Ryder, N., et~al. (2020).
+\newblock Language models are few-shot learners.
+\newblock In \emph{Advances in Neural Information Processing Systems (NeurIPS)}, vol.~33, pp.\ 1877--1901.
+\newblock \url{https://proceedings.neurips.cc/paper/2020/hash/1457c0d6bfcb4967418bfb8ac142f64a-Abstract.html}
+
+\bibitem[Dziri et~al., 2023]{dziri2023faith}
+Dziri, N., Lu, X., Sclar, M., et~al. (2023).
+\newblock Faith and fate: Limits of transformers on compositionality.
+\newblock In \emph{Advances in Neural Information Processing Systems (NeurIPS)}, vol.~36.
+\newblock \url{https://arxiv.org/abs/2305.18654}
+
+\bibitem[Romera-Paredes et~al., 2024]{romeraparedes2024funsearch}
+Romera-Paredes, B., Barekatain, M., Novikov, A., et~al. (2024).
+\newblock Mathematical discoveries from program search with large language models.
+\newblock \emph{Nature}, 625:468--475.
+\newblock \url{https://doi.org/10.1038/s41586-023-06924-6}
+
+\bibitem[AlphaProof Team, 2024]{alphaproof2024imo}
+AlphaProof Team and AlphaGeometry Team (2024).
+\newblock {AI} achieves silver-medal standard solving {I}nternational {M}athematical {O}lympiad problems.
+\newblock Google DeepMind Blog, July 2024.
+\newblock \url{https://deepmind.google/discover/blog/ai-solves-imo-problems-at-silver-medal-level/}
+
+\bibitem[Knuth, 2026]{knuth2026claude}
+Knuth, D.~E. (2026).
+\newblock Claude's cycles.
+\newblock Stanford University, available at \url{https://www-cs-faculty.stanford.edu/~knuth/papers/claude-cycles.pdf}.
+
+\bibitem[Mylopoulos, 1992]{mylopoulos1992conceptual}
+Mylopoulos, J. (1992).
+\newblock Conceptual modelling and {T}elos.
+\newblock In Loucopoulos, P. and Zicari, R., editors, \emph{Conceptual Modelling, Databases, and CASE: An Integrated View of Information Systems Development}, pp.\ 49--68. Wiley.
+
+\bibitem[Wand and Weber, 1990]{wand1990ontological}
+Wand, Y. and Weber, R. (1990).
+\newblock An ontological model of an information system.
+\newblock \emph{IEEE Transactions on Software Engineering}, 16(11):1282--1292.
+
+\bibitem[Oliv\'{e}, 2007]{olive2007conceptual}
+Oliv\'{e}, A. (2007).
+\newblock \emph{Conceptual Modeling of Information Systems}.
+\newblock Springer.
+\newblock \url{https://link.springer.com/chapter/10.1007/978-3-540-39390-0_1}
+
+\end{thebibliography}
+
+\end{document}

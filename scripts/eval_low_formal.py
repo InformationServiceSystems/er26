@@ -1,5 +1,5 @@
-# scripts/eval_semi_formal.py
-"""Evaluate semi-formal legal clause interpretation tasks using semantic similarity."""
+# scripts/eval_low_formal.py
+"""Evaluate low-formal management decision tasks using semantic similarity."""
 import json
 from pathlib import Path
 import pandas as pd
@@ -22,10 +22,9 @@ def parse_args():
     return parser.parse_args()
 
 _args = parse_args()
-IN_PATH = Path(f"data/results_raw/semi_formal_{_args.model}.jsonl")
-OUT_PATH = Path(f"data/results_raw/semi_formal_{_args.model}_eval.csv")
+IN_PATH = Path(f"data/results_raw/low_formal_{_args.model}.jsonl")
+OUT_PATH = Path(f"data/results_raw/low_formal_{_args.model}_eval.csv")
 
-# Semantic similarity threshold for "correct" match
 SIMILARITY_THRESHOLD = 0.85
 
 def normalize_text(text: str) -> str:
@@ -42,17 +41,11 @@ def compute_semantic_similarity(gold: str, pred: str, model) -> float:
     similarity = cosine_similarity([embeddings[0]], [embeddings[1]])[0][0]
     return float(similarity)
 
-def compute_exact_match(gold: str, pred: str) -> int:
-    """Compute exact match (case-insensitive, whitespace-normalized)."""
-    gold_norm = normalize_text(gold).lower()
-    pred_norm = normalize_text(pred).lower()
-    return int(gold_norm == pred_norm)
-
 def main():
-    """Evaluate semi-formal legal clause interpretation tasks."""
+    """Evaluate low-formal management decision tasks."""
     if not IN_PATH.exists():
         print(f"Error: Results file not found at {IN_PATH}")
-        print("Please run scripts/run_semi_formal_local.py first")
+        print("Please run scripts/run_low_formal_local.py first")
         return
 
     print(f"Loading results from {IN_PATH}")
@@ -72,7 +65,7 @@ def main():
         df['similarity'] = df.apply(
             lambda row: compute_semantic_similarity(
                 str(row.get('gold_answer', '')),
-                str(row.get('pred_answer', '')),
+                str(row.get('pred_response', '')),
                 sim_model
             ),
             axis=1
@@ -82,21 +75,11 @@ def main():
         df['similarity'] = 0.0
         df['correct_semantic'] = 0
 
-    # Exact match
-    df['exact_match'] = df.apply(
-        lambda row: compute_exact_match(
-            str(row.get('gold_answer', '')),
-            str(row.get('pred_answer', ''))
-        ),
-        axis=1
-    )
-
     # Summary statistics
     print(f"\n{'='*60}")
-    print(f"Evaluation Results (Semi-Formal Legal Clause Tasks)")
+    print(f"Evaluation Results (Low-Formal Management Decision Tasks)")
     print(f"{'='*60}")
     print(f"Total tasks: {len(df)}")
-    print(f"Exact matches: {df['exact_match'].sum()} ({df['exact_match'].mean()*100:.1f}%)")
 
     if HAS_SENTENCE_TRANSFORMERS:
         print(f"Semantic matches (threshold={SIMILARITY_THRESHOLD}): {df['correct_semantic'].sum()} ({df['correct_semantic'].mean()*100:.1f}%)")
@@ -109,6 +92,14 @@ def main():
             subset = df[df['complexity'] == comp]
             avg_sim = subset['similarity'].mean() if HAS_SENTENCE_TRANSFORMERS else 0
             print(f"  {comp}: n={len(subset)}, avg_similarity={avg_sim:.3f}")
+
+    # By category
+    if 'category' in df.columns:
+        print(f"\nBy Category:")
+        for cat in sorted(df['category'].unique()):
+            subset = df[df['category'] == cat]
+            avg_sim = subset['similarity'].mean() if HAS_SENTENCE_TRANSFORMERS else 0
+            print(f"  {cat}: n={len(subset)}, avg_similarity={avg_sim:.3f}")
 
     # Cognitive efficiency metrics
     if "efficiency_activation_pct" in df.columns:
@@ -129,12 +120,17 @@ def main():
 
     # Show sample results
     print("\nSample results (first 5):")
-    display_cols = ['id', 'run_index', 'exact_match']
+    display_cols = ['id', 'run_index']
     if HAS_SENTENCE_TRANSFORMERS:
         display_cols.extend(['similarity', 'correct_semantic'])
     if 'complexity' in df.columns:
         display_cols.append('complexity')
+    if 'category' in df.columns:
+        display_cols.append('category')
     print(df[display_cols].head(5).to_string())
+
+    print("\nNote: Low-formal tasks require expert rubric scoring (0-3 scale).")
+    print("Semantic similarity is a diagnostic metric only.")
 
 if __name__ == "__main__":
     main()

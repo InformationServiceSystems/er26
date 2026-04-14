@@ -36,9 +36,18 @@ data/**/*.json
 *.swo
 *~
 
+# Environment
+.env
+
 # OS
 .DS_Store
 Thumbs.db
+
+# Working materials (not for repo)
+Steve Veda Wolfgang.zip
+Steve Veda Wolfgang/
+Steve/
+data Kopie/
 
 # Results
 results_raw/

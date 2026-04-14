@@ -1,17 +1,41 @@
 # Local LLM Formalization Experiment
 
-This repository contains a **purely local** setup for running LLM experiments on formalization tasks (SQL, semi-formal, and low-formal tasks) using HuggingFace models on an RTX 3090.
+This repository contains a **purely local** setup for running LLM experiments on formalization tasks (SQL, semi-formal, and low-formal tasks) using HuggingFace models. Supports both **NVIDIA GPUs (CUDA)** and **Apple Silicon (MPS/Metal)**.
 
 ## Setup
 
 ### 1. Create Conda Environment
 
 ```bash
-conda create -n llm-formalization python=3.11 -y
+conda create -n llm-formalization python=3.12 -y
 conda activate llm-formalization
 ```
 
+> **Important:** PyTorch requires Python <=3.12. Do not use 3.13 or 3.14.
+
 ### 2. Install GPU-enabled PyTorch
+
+**Apple Silicon (M1/M2/M3/M4):**
+
+```bash
+pip install torch torchvision torchaudio
+```
+
+Verify MPS is available:
+
+```bash
+python - << 'EOF'
+import torch
+print("MPS available:", torch.backends.mps.is_available())
+print("PyTorch version:", torch.__version__)
+EOF
+```
+
+You should see `MPS available: True`.
+
+> **Note:** 4-bit quantization (BitsAndBytes) is not supported on Apple Silicon. Models run in FP16, which works well on M4 Max with its large unified memory.
+
+**NVIDIA GPU (RTX 3090 etc.):**
 
 ```bash
 conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia -y
@@ -27,7 +51,7 @@ print("Device:", torch.cuda.get_device_name(0) if torch.cuda.is_available() else
 EOF
 ```
 
-You should see your **GeForce RTX 3090** listed.
+You should see your GPU listed.
 
 ### 3. Install Python Dependencies
 
@@ -201,8 +225,14 @@ ER26/
 └── README.md                          # This file
 ```
 
-## Model Recommendations for RTX 3090 (24GB)
+## Model Recommendations
 
+**Apple Silicon M4 Max (64GB+ unified memory):**
+- **Strong model (8B)**: `meta-llama/Meta-Llama-3-8B-Instruct` (FP16 — fits easily)
+- **Baseline model (7B)**: `mistralai/Mistral-7B-Instruct-v0.3` (FP16)
+- No quantization needed — unified memory is shared between CPU and GPU
+
+**NVIDIA RTX 3090 (24GB VRAM):**
 - **Strong model (8B)**: `meta-llama/Meta-Llama-3-8B-Instruct` (use 4-bit quantization)
 - **Baseline model (7B)**: `mistralai/Mistral-7B-Instruct-v0.3` (can use FP16)
 
@@ -230,8 +260,9 @@ To compare different models:
 
 ## Tips
 
-- **4-bit quantization**: Use for 8B+ models to fit in 24GB VRAM
-- **FP16**: Use for 7B models or when you have headroom
+- **Apple Silicon**: Models run in FP16 on MPS. The M4 Max has plenty of unified memory for 7B-8B models. No quantization needed.
+- **4-bit quantization**: Use for 8B+ models on NVIDIA GPUs to fit in 24GB VRAM
+- **FP16**: Use for 7B models or when you have headroom (always used on Apple Silicon)
 - **Temperature**: Lower (0.3-0.5) for consistency, higher (0.7-1.0) for diversity
 - **Batch processing**: Results are written incrementally, so you can stop/resume safely
 

@@ -1,0 +1,12 @@
+universe                = docker
+docker_image            = nvcr.io/nvidia/pytorch:25.01-py3
+executable              = hpc/jobs/run_low_llama.sh
+output                  = hpc/logs/low_llama_$(Cluster).out
+error                   = hpc/logs/low_llama_$(Cluster).err
+log                     = hpc/logs/low_llama_$(Cluster).log
++WantGPUHomeMounted     = true
+request_gpus            = 1
+request_cpus            = 4
+request_memory          = 32G
+request_disk            = 50G
+queue

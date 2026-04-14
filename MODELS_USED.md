@@ -40,9 +40,9 @@ LOAD_IN_4BIT = True  # Using 4-bit quantization
 
 ### Model Loading
 - **Framework**: HuggingFace Transformers
-- **Quantization**: BitsAndBytesConfig (4-bit)
-- **Device**: Auto (CUDA/GPU)
-- **Memory**: Optimized for RTX 3090 (24GB VRAM)
+- **Quantization**: BitsAndBytesConfig 4-bit (CUDA) or FP16 (Apple Silicon MPS)
+- **Device**: Auto-detected (MPS on Apple Silicon, CUDA on NVIDIA, CPU fallback)
+- **Memory**: Works on RTX 3090 (24GB VRAM) and Apple M4 Max (unified memory)
 
 ## How to Change Models
 
@@ -66,14 +66,13 @@ MODEL_DIR = "models/llama3-8b"  # Local directory path
 
 | Model | Parameters | Quantization | Status | Notes |
 |-------|-----------|--------------|--------|-------|
-| Mistral-7B-Instruct-v0.3 | 7B | 4-bit | ✅ Active | Public, no auth needed |
-| Meta-Llama-3-8B-Instruct | 8B | 4-bit | ⚠️ Available | Requires HF login |
-| Mistral-7B-Instruct-v0.3 | 7B | FP16 | ⚠️ Available | Alternative quantization |
+| Mistral-7B-Instruct-v0.3 | 7B | 4-bit / FP16 | ✅ Active | Public, no auth needed |
+| Meta-Llama-3-8B-Instruct | 8B | 4-bit / FP16 | ⚠️ Available | Requires HF login |
 
 ## Current Experiment Results
 
 All experiments were run with:
 - **Model**: Mistral-7B-Instruct-v0.3
-- **Quantization**: 4-bit
-- **Device**: RTX 3090 (24GB VRAM)
+- **Quantization**: 4-bit (CUDA) or FP16 (Apple Silicon)
+- **Device**: RTX 3090 (24GB VRAM) or Apple M4 Max (MPS)
 

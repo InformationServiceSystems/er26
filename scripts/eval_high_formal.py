@@ -6,8 +6,16 @@ import pandas as pd
 import sys
 import re
 
-IN_PATH = Path("data/results_raw/high_formal_llama_3_1_8b.jsonl")
-OUT_PATH = Path("data/results_raw/high_formal_llama_3_1_8b_eval.csv")
+import argparse
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model", default="mistral_7b", help="Model ID (e.g., mistral_7b, llama_3_1_8b)")
+    return parser.parse_args()
+
+_args = parse_args()
+IN_PATH = Path(f"data/results_raw/high_formal_{_args.model}.jsonl")
+OUT_PATH = Path(f"data/results_raw/high_formal_{_args.model}_eval.csv")
 
 # Try to import sentence transformers for semantic similarity
 try:

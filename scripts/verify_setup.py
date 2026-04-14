@@ -4,18 +4,22 @@ import sys
 from pathlib import Path
 
 def check_pytorch():
-    """Check PyTorch and CUDA availability."""
+    """Check PyTorch and GPU availability (CUDA or MPS)."""
     try:
         import torch
         print("✓ PyTorch installed")
         print(f"  Version: {torch.__version__}")
-        
-        if torch.cuda.is_available():
-            print(f"✓ CUDA available")
+
+        if torch.backends.mps.is_available():
+            print("✓ MPS (Apple Silicon) available")
+            print("  Device: Apple Metal GPU")
+            print("  Note: 4-bit quantization not supported on MPS, using FP16")
+        elif torch.cuda.is_available():
+            print("✓ CUDA available")
             print(f"  Device: {torch.cuda.get_device_name(0)}")
             print(f"  CUDA Version: {torch.version.cuda}")
         else:
-            print("✗ CUDA not available - GPU acceleration will not work")
+            print("✗ No GPU backend available - will use CPU (slow)")
         return True
     except ImportError:
         print("✗ PyTorch not installed")
@@ -32,12 +36,21 @@ def check_transformers():
         return False
 
 def check_bitsandbytes():
-    """Check bitsandbytes for quantization."""
+    """Check bitsandbytes for quantization (optional on Apple Silicon)."""
+    try:
+        import torch
+        is_mps = torch.backends.mps.is_available()
+    except Exception:
+        is_mps = False
+
     try:
         import bitsandbytes
         print(f"✓ BitsAndBytes installed (version {bitsandbytes.__version__})")
         return True
     except ImportError:
+        if is_mps:
+            print("⊘ BitsAndBytes not installed (not needed on Apple Silicon, using FP16)")
+            return True  # Not a failure on MPS
         print("✗ BitsAndBytes not installed (4-bit quantization will not work)")
         return False
 

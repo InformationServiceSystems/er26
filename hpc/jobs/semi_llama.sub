@@ -1,0 +1,13 @@
+universe                = docker
+docker_image            = nvcr.io/nvidia/pytorch:25.01-py3
+executable              = hpc/jobs/run_semi_llama.sh
+output                  = hpc/logs/semi_llama_$(Cluster).out
+error                   = hpc/logs/semi_llama_$(Cluster).err
+log                     = hpc/logs/semi_llama_$(Cluster).log
++WantGPUHomeMounted     = true
+requirements            = (TARGET.GPUs_DeviceName == "ASUS H200 NVL") || (TARGET.GPUs_DeviceName == "NVIDIA RTX PRO 6000 Blackwell Server Edition")
+request_gpus            = 1
+request_cpus            = 4
+request_memory          = 32G
+request_disk            = 50G
+queue

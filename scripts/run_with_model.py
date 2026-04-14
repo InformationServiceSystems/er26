@@ -8,30 +8,28 @@ import re
 def update_script_model(script_name: str, model_path: str, model_id: str, load_4bit: bool = True):
     """Update a script to use a specific model and output path."""
     script_path = Path(__file__).parent / script_name
-    
+
     if not script_path.exists():
         print(f"Error: Script not found: {script_name}")
         return False
-    
+
     content = script_path.read_text()
-    original = content
-    
+
     # Update MODEL_DIR
     content = re.sub(
         r'MODEL_DIR\s*=\s*"[^"]*"',
         f'MODEL_DIR = "{model_path}"',
         content
     )
-    
+
     # Update LOAD_IN_4BIT
     content = re.sub(
         r'LOAD_IN_4BIT\s*=\s*(True|False)',
         f'LOAD_IN_4BIT = {load_4bit}',
         content
     )
-    
+
     # Update OUT_PATH to include model identifier
-    # Pattern: OUT_PATH = Path("data/results_raw/...")
     if "high_formal" in script_name:
         new_path = f'data/results_raw/high_formal_{model_id}.jsonl'
     elif "semi_formal" in script_name:
@@ -40,37 +38,39 @@ def update_script_model(script_name: str, model_path: str, model_id: str, load_4
         new_path = f'data/results_raw/low_formal_{model_id}.jsonl'
     else:
         new_path = f'data/results_raw/{model_id}.jsonl'
-    
+
     content = re.sub(
         r'OUT_PATH\s*=\s*Path\("[^"]*"\)',
         f'OUT_PATH = Path("{new_path}")',
         content
     )
-    
+
     script_path.write_text(content)
     return True
 
-def run_script(script_name: str):
+def run_script(script_name: str, extra_args=None):
     """Run a Python script."""
     script_path = Path(__file__).parent / script_name
-    result = subprocess.run(
-        [sys.executable, str(script_path)],
-        cwd=Path(__file__).parent.parent
-    )
+    cmd = [sys.executable, str(script_path)]
+    if extra_args:
+        cmd.extend(extra_args)
+    result = subprocess.run(cmd, cwd=Path(__file__).parent.parent)
     return result.returncode == 0
 
 def main():
     """Run experiments with specified model."""
     import argparse
-    
+
     parser = argparse.ArgumentParser(description="Run experiments with a specific model")
-    parser.add_argument("--model", required=True, choices=["mistral", "llama"], 
+    parser.add_argument("--model", required=True, choices=["mistral", "llama"],
                        help="Model to use: mistral or llama")
     parser.add_argument("--task", choices=["high_formal", "semi_formal", "low_formal", "all"],
                        default="all", help="Task type to run")
-    
+    parser.add_argument("--num_runs", type=int, default=1,
+                       help="Number of runs per task (default: 1; set to 5 for H2 consistency)")
+
     args = parser.parse_args()
-    
+
     # Model configurations
     MODELS = {
         "mistral": {
@@ -84,15 +84,21 @@ def main():
             "name": "Llama-3.1-8B-Instruct"
         }
     }
-    
+
     model_config = MODELS[args.model]
-    
+
     print(f"\n{'='*70}")
     print(f"Running experiments with: {model_config['name']}")
+    if args.num_runs > 1:
+        print(f"Consistency mode: {args.num_runs} runs per task (H2)")
     print(f"{'='*70}\n")
-    
+
+    run_args = []
+    if args.num_runs > 1:
+        run_args = ["--num_runs", str(args.num_runs)]
+
     tasks = ["high_formal", "semi_formal", "low_formal"] if args.task == "all" else [args.task]
-    
+
     for task in tasks:
         if task == "high_formal":
             script = "run_high_formal_local.py"
@@ -102,26 +108,25 @@ def main():
             script = "run_low_formal_local.py"
         else:
             continue
-        
+
         print(f"\n{'='*70}")
         print(f"Task: {task} | Model: {model_config['name']}")
         print(f"{'='*70}")
-        
+
         # Update script
         if not update_script_model(script, model_config["path"], model_config["id"]):
             print(f"Failed to update {script}")
             continue
-        
+
         # Run script
-        if run_script(script):
-            print(f"✓ Completed: {task} with {model_config['name']}")
+        if run_script(script, run_args):
+            print(f"Completed: {task} with {model_config['name']}")
         else:
-            print(f"✗ Failed: {task} with {model_config['name']}")
-    
+            print(f"Failed: {task} with {model_config['name']}")
+
     print(f"\n{'='*70}")
     print("Experiments completed!")
     print(f"{'='*70}")
 
 if __name__ == "__main__":
     main()
-
