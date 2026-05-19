@@ -290,7 +290,6 @@ Low   & Mistral & 155 & .259 & .060 & .202 & 0.6$\times$ \\
 \end{tabular}
 \end{table}
 
-
 % \vspace{5pt}
 \noindent
 \textit{Consistency metrics ($K\!=\!5$).}
@@ -316,6 +315,7 @@ Because automated overlap metrics are proxies for semantic quality, we designed 
 \noindent Each output is scored independently by two annotators; inter-annotator agreement is measured by Cohen's kappa (target $\kappa \geq 0.70$). A stratified sample of 30 outputs (10 per level, balanced across models and complexity tags) is scored in a pilot round to calibrate the rubric before full annotation. Expert evaluation has begun through random checks, but the full rubric-based annotation has not yet been fully completed.
 %(Section~\ref{sec:human-results}).
 
+% ══════════════════════════════════════════════════════════════
 % ══════════════════════════════════════════════════════════════
 \section{Results}
 \label{sec:results}
@@ -578,6 +578,7 @@ We use \textit{context drift} to denote the tendency of generated outputs to div
 We use \textit{normative ambiguity} to denote situations in which multiple outputs are defensible because evaluation depends on competing stakeholder values, organizational priorities, or socially contingent judgments rather than formally decidable correctness criteria. Normative ambiguity is largely absent in the SQL tasks, bounded in the legal tasks by contractual language and precedent, and most pronounced in the management tasks where tradeoffs among stakeholders often lack a single objectively correct resolution.
 
 These observations help explain the formalization gradient. As formalization decreases, the conceptual boundaries constraining interpretation weaken, increasing susceptibility to context drift and normative ambiguity even when outputs remain superficially coherent.
+
 
 % ══════════════════════════════════════════════════════════════
 \subsection{Limitations}
