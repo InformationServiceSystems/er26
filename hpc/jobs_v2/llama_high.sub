@@ -1,0 +1,36 @@
+# HTCondor submit file for Llama-3.1-8B — ER v2 HIGH-FORMAL re-run only.
+# Regenerates data/results_v2/high_formal_llama.jsonl with the fixed
+# token-sliced prompt stripping + few-shot continuation truncation
+# (the prior run truncated SPARQL answers and included continuation pollution).
+# Semi-/low-formal Llama outputs were unaffected and are NOT re-run.
+#
+# Prereq: git pull / rsync the fixed scripts into $HOME/er26 on the cluster first.
+# Usage:  condor_submit hpc/jobs_v2/llama_high.sub
+
+universe                = docker
+docker_image            = nvcr.io/nvidia/pytorch:25.01-py3
+
+executable              = hpc/jobs_v2/run_experiment.sh
+arguments               = llama meta-llama/Llama-3.1-8B-Instruct high
+
+output                  = hpc/logs/v2_llama_high_$(Cluster).out
+error                   = hpc/logs/v2_llama_high_$(Cluster).err
+log                     = hpc/logs/v2_llama_high_$(Cluster).log
+
+# Mount /home NFS into the container
++WantGPUHomeMounted     = true
+
+# Route to H200 (preferred) or Blackwell GPU machines
+Requirements            = (Machine == "tig.hpc.uni-saarland.de" || Machine == "tyr1.hpc.uni-saarland.de" || Machine == "tyr2.hpc.uni-saarland.de" || Machine == "forseti.hpc.uni-saarland.de" || Machine == "fjolnir.hpc.uni-saarland.de" || Machine == "fornjoter.hpc.uni-saarland.de")
+Rank                    = (Machine == "tig.hpc.uni-saarland.de") * 3 + (Machine == "tyr1.hpc.uni-saarland.de") * 3 + (Machine == "tyr2.hpc.uni-saarland.de") * 3 + (Machine == "forseti.hpc.uni-saarland.de") * 2 + (Machine == "fjolnir.hpc.uni-saarland.de") * 2 + (Machine == "fornjoter.hpc.uni-saarland.de") * 2
+
+# GPU request — 1 GPU for 8B model in FP16
+request_gpus            = 1
+request_cpus            = 4
+request_memory          = 32G
+request_disk            = 50G
+
+# Expected runtime: ~2-3 hours for 500 outputs (100 high-formal tasks x K=5)
++MaxRuntime             = 21600
+
+queue

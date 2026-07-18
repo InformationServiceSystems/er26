@@ -65,6 +65,25 @@ SELECT (COUNT(?line) AS ?count) WHERE {
 """
 
 
+def truncate_continuation(text, level_name):
+    """Cut off few-shot continuation the model appends after its answer.
+
+    The high-formal prompt uses few-shot ``Question:/SPARQL:`` examples, so the
+    model tends to keep emitting further ``Question:``/``Example:`` blocks after
+    answering. We keep only the text before the first such continuation marker.
+    Applied to high-formal only (the semi-/low-formal prompts have no few-shot
+    blocks and their prose answers may legitimately contain these words).
+    """
+    if level_name != "high_formal":
+        return text
+    cut = len(text)
+    for marker in ("\nQuestion:", "\n\nQuestion:", "\nExample:", "\n\nExample:"):
+        idx = text.find(marker)
+        if idx != -1:
+            cut = min(cut, idx)
+    return text[:cut]
+
+
 def build_hf_prompt(question, tbox):
     return (
         "You are an expert SPARQL query writer. "
@@ -170,8 +189,12 @@ def main():
                 for run_idx in range(args.num_runs):
                     t0 = time.time()
                     try:
-                        text = model.generate(prompt, max_new_tokens=max_tokens, temperature=0.7)
-                        response = text[len(prompt):].strip()
+                        # Token-sliced completion (robust prompt stripping); the prior
+                        # character-offset strip text[len(prompt):] misaligned for Llama
+                        # and truncated the answer start. See local_model.generate_completion.
+                        raw = model.generate_completion(
+                            prompt, max_new_tokens=max_tokens, temperature=0.7)
+                        response = truncate_continuation(raw, level_name).strip()
                     except Exception as e:
                         response = f"[ERROR: {str(e)[:200]}]"
                     elapsed = time.time() - t0

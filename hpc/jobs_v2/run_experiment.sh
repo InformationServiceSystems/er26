@@ -5,8 +5,9 @@
 
 set -e
 
-MODEL_NAME="${1:?Usage: run_experiment.sh <model_name> <model_path>}"
-MODEL_PATH="${2:?Usage: run_experiment.sh <model_name> <model_path>}"
+MODEL_NAME="${1:?Usage: run_experiment.sh <model_name> <model_path> [level]}"
+MODEL_PATH="${2:?Usage: run_experiment.sh <model_name> <model_path> [level]}"
+LEVEL="${3:-all}"   # high | semi | low | all (default all)
 K=5
 
 echo "=== Job started at $(date) ==="
@@ -58,12 +59,13 @@ RESULTS_DIR="data/results_v2"
 mkdir -p "$RESULTS_DIR"
 
 echo ""
-echo "=== Running full experiment: 190 tasks x K=$K ==="
+echo "=== Running experiment: level=$LEVEL, K=$K ==="
 python3 scripts/run_full_experiment.py \
     --model "$MODEL_PATH" \
     --model_name "$MODEL_NAME" \
     --output_dir "$RESULTS_DIR" \
     --num_runs $K \
+    --level "$LEVEL" \
     2>&1
 
 echo ""

@@ -219,6 +219,24 @@ we combine the three formalization levels into a continuous \textit{formalizatio
 
 We define $F(T) = \tfrac{1}{3}(\hat{C}(T) + S(T) + D(T))$, where $\hat{C}(T) = 1 / \log_2(1 + C(T))$ normalizes cardinality to $[0,1]$. The denominator has an information-theoretic reading: $\log_2 C(T)$ is the Shannon entropy of a uniform distribution over the $C(T)$ acceptable outputs. The $+1$ offset makes the unique-answer case ($C{=}1$) map to $\hat{C}{=}1$ rather than a singularity, while the logarithm ensures diminishing returns. Thus, moving from one to two defensible answers reduces formalization more than moving from a hundred to two hundred.
 
+Crucially, $F(T)$ is computed \emph{per task instance}, not merely per level. For each of the 190 tasks, $C(T)$, $S(T)$, and $D(T)$ are derived programmatically from task metadata and gold-output structural features (e.g., $S(T)$ from SQL-keyword and punctuation density on the gold query for high-formal tasks, and from analogous markers for the other levels), yielding a continuous $F$ value that varies \emph{within} each level as well as across levels. Table~\ref{tab:F-dims} reports the per-dimension values, and Section~\ref{sec:F-validation} tests whether this instance-level $F(T)$ carries explanatory power beyond the categorical high/semi/low encoding.
+
+\begin{table}[ht]
+\centering
+\caption{Formalization metric $F(T)$ by level: per-dimension inputs and resulting $F$ (mean $\pm$ std over task instances). $\hat{C}$ is normalized output-space cardinality, $S$ syntactic constraint density, $D$ evaluation decidability. $F$ varies within levels because $C(T)$ and $S(T)$ are computed per instance.}
+\label{tab:F-dims}
+\setlength{\tabcolsep}{6pt}
+\begin{tabular}{lrrrrl}
+\toprule
+Level & $n$ & $\hat{C}$ & $S$ (mean) & $D$ & $F(T)$ \\
+\midrule
+High & 100 & 0.558 & 0.880 & 1.0 & $0.813 \pm 0.078$ \\
+Semi &  59 & 0.273 & 0.423 & 0.5 & $0.399 \pm 0.029$ \\
+Low  &  31 & 0.141 & 0.255 & 0.0 & $0.132 \pm 0.008$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 The experiments performed for this study of LLM performance across various modeling tasks run locally using open-weight models.  We use two open-weight instruction-tuned models: Mistral-7B-Instruct-v0.3 (7.24B parameters, sliding-window and grouped-query attention)~\cite{jiang2023mistral} and Llama-3.1-8B-Instruct (8.03B parameters, RoPE, 128K context window)~\cite{grattafiori2024llama3herdmodels}. Both run locally on an HTCondor-managed HPC cluster at Anonymous University. Each job uses a Docker container (\texttt{nvcr.io/nvidia/pytorch:25.01-py3}) with one NVIDIA A100 40GB GPU, 4 CPUs, 32GB RAM, and 50GB disk. All inference is performed locally; no API calls to external services are used.
 
 All inference flows through a unified \texttt{LocalChatModel} class that handles model loading, prompt formatting, and generation. The wrapper:
@@ -273,7 +291,7 @@ All three are recall-biased: they measure how much of the gold standard is recov
 
 \begin{table}[htbp]
 \centering
-\caption{Quality metrics by formalization level and model. Overlap metrics are computed against gold standards. High-formal metrics are now computed on the raw model output (\texttt{pred\_sql} in the JSONL records) for cross-level consistency with the semi- and low-formal levels (which already use raw text); a prior version used SQL-normalized text. Relative changes to the high-formal cells under this representation switch are: Word Llama $+2.7\%$ (within tolerance), Bigram Llama $+11.7\%$, KeyTerm Llama $+6.5\%$, Pred/Gold Llama $-16.7\%$ (the previous $8.4\times$ was a token-based estimate; the present value is the mean character-length ratio); Word Mistral $+6.7\%$, Bigram Mistral $+25.3\%$, KeyTerm Mistral $+7.9\%$, Pred/Gold Mistral $+6.5\%$. Semi- and low-formal rows are unchanged. See \texttt{scripts/recompute\_h3\_consistent.py}.}
+\caption{Quality metrics (recall-oriented overlap against gold standards) by formalization level and model. All levels are computed on a single raw-text word-set representation (letters only, length $\geq 3$; key-terms length $>4$ minus stopwords), resolving a prior representation mismatch in which high-formal used raw output while semi/low used a legacy computation. Pred/Gold is the mean character-length ratio. See \texttt{scripts/recompute\_unified\_metrics.py}. Precision and $F_1$ for these same sets appear in Table~\ref{tab:precision}.}
 \label{tab:quality}
 \setlength{\tabcolsep}{5pt}
 \begin{tabular}{llrrrrr}
@@ -281,11 +299,11 @@ All three are recall-biased: they measure how much of the gold standard is recov
 Level & Model & $N$ & Word$\uparrow$ & Bigram$\uparrow$ & KeyTerm$\uparrow$ & Pred/Gold \\
 \midrule
 High  & Llama   & 500 & .800 & .510 & .791 & 7.00$\times$ \\
-High  & Mistral & 500 & .764 & .442 & .748 & 1.07$\times$ \\
-Semi  & Llama   & 295 & .316 & .084 & .163 & 1.9$\times$ \\
-Semi  & Mistral & 295 & .240 & .056 & .115 & 0.6$\times$ \\
-Low   & Llama   & 155 & .259 & .060 & .201 & 0.6$\times$ \\
-Low   & Mistral & 155 & .259 & .060 & .202 & 0.6$\times$ \\
+High  & Mistral & 500 & .764 & .442 & .748 & 1.06$\times$ \\
+Semi  & Llama   & 295 & .251 & .070 & .181 & 1.73$\times$ \\
+Semi  & Mistral & 295 & .181 & .044 & .124 & 0.61$\times$ \\
+Low   & Llama   & 155 & .231 & .052 & .204 & 0.64$\times$ \\
+Low   & Mistral & 155 & .229 & .053 & .205 & 0.57$\times$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -323,7 +341,7 @@ Because automated overlap metrics are proxies for semantic quality, we designed 
 \subsection{Quality and Variance Metrics (H1 and H2)}
 \label{sec:quality}
 
-To assess H1, we apply statistical tests and perform pairwise comparisons between the metrics described in Table~\ref{tab:quality}, which shows that quality decreases monotonically with formalization. Averaging across models, word overlap decreases from $.782$ (high) to $.278$ (semi) to $.259$ (low). The Kruskal-Wallis test reported in Table~\ref{tab:kruskal} confirms that this gradient is highly significant for all metrics. High-formal overlap and length metrics are computed on the raw model output for cross-level consistency; the SQL-normalized representation used in a prior version of the analysis suppressed Llama's chain-of-thought commentary on which the length-mediation argument (Section~\ref{sec:model-comparison}) partially relies. The implications of the representation switch are discussed where they arise.
+To assess H1, we apply statistical tests and perform pairwise comparisons between the metrics described in Table~\ref{tab:quality}, which shows that quality drops sharply with decreasing formalization. Averaging across models, word overlap falls from $.782$ (high) to $.216$ (semi) and $.230$ (low); the dominant gradient is the high-to-semi drop, after which semi- and low-formal tasks occupy a similar quality band (the small semi--low differences are examined in Section~\ref{sec:model-comparison}). The Kruskal-Wallis test reported in Table~\ref{tab:kruskal} confirms that the across-level gradient is highly significant for all metrics. All overlap and length metrics are computed on a single raw-text representation (Table~\ref{tab:quality}); an earlier version of the analysis mixed raw and SQL-normalized text at the high-formal level, and the unified representation is used throughout.
 
 \begin{table}[htbp]
 \centering
@@ -334,9 +352,9 @@ To assess H1, we apply statistical tests and perform pairwise comparisons betwee
 \toprule
 Metric & $H$ & $p~~~~~~$ & Sig. \\
 \midrule
-Word overlap    & 1374.16 & $4.0 \times 10^{-299}$ & *** \\
-Bigram overlap  & 1176.02 & $4.3 \times 10^{-256}$ & *** \\
-Key-term recall & 1435.39 & $< 10^{-300}$ & *** \\
+Word overlap    & 1410.32 & $5.7 \times 10^{-307}$ & *** \\
+Bigram overlap  & 1313.20 & $6.9 \times 10^{-286}$ & *** \\
+Key-term recall & 1450.51 & $< 10^{-300}$ & *** \\
 \bottomrule
 \multicolumn{4}{l}{\scriptsize Significance codes: *** $p < 0.001$.}
 \end{tabular}
@@ -355,19 +373,19 @@ Mann-Whitney $U$ tests with Bonferroni correction reveal that the dominant quali
 Metric & Comparison & $\Delta$ & $U$ & $p_{\text{corr}}$ & $r~~$ & Sig. \\
 \midrule
 Word$\uparrow$
-  & High$\,\to\,$Semi & $+.470$ & 583449 & $6.9 \times 10^{-233}$ & $-.978$ & *** \\
-  & High$\,\to\,$Low  & $+.489$ & 309138 & $3.6 \times 10^{-154}$ & $-.994$ & *** \\
-  & Semi$\,\to\,$Low  & $+.019$ & 91717 & $1.00$ & $-.003$ & ns \\
+  & High$\,\to\,$Semi & $+.566$ & 586827 & $1.9 \times 10^{-238}$ & $-.989$ & *** \\
+  & High$\,\to\,$Low  & $+.552$ & 309533 & $4.4 \times 10^{-155}$ & $-.997$ & *** \\
+  & Semi$\,\to\,$Low  & $-.014$ & 63238 & $8.0 \times 10^{-14}$ & $+.308$ & *** \\
 \midrule
 Bigram$\uparrow$
-  & High$\,\to\,$Semi & $+.335$ & 556196 & $3.2 \times 10^{-191}$ & $-.885$ & *** \\
-  & High$\,\to\,$Low  & $+.345$ & 301707 & $9.2 \times 10^{-140}$ & $-.946$ & *** \\
-  & Semi$\,\to\,$Low  & $+.010$ & 61812 & $3.8 \times 10^{-15}$ & $+.324$ & *** \\
+  & High$\,\to\,$Semi & $+.419$ & 573804 & $1.1 \times 10^{-217}$ & $-.945$ & *** \\
+  & High$\,\to\,$Low  & $+.424$ & 305482 & $4.8 \times 10^{-147}$ & $-.971$ & *** \\
+  & Semi$\,\to\,$Low  & $+.005$ & 53534 & $4.3 \times 10^{-24}$ & $+.415$ & *** \\
 \midrule
 KeyTerm$\uparrow$
-  & High$\,\to\,$Semi & $+.579$ & 585902 & $2.0 \times 10^{-237}$ & $-.986$ & *** \\
-  & High$\,\to\,$Low  & $+.516$ & 308133 & $7.4 \times 10^{-153}$ & $-.988$ & *** \\
-  & Semi$\,\to\,$Low  & $-.063$ & 35858 & $2.2 \times 10^{-50}$ & $+.608$ & *** \\
+  & High$\,\to\,$Semi & $+.618$ & 588186 & $1.0 \times 10^{-240}$ & $-.994$ & *** \\
+  & High$\,\to\,$Low  & $+.565$ & 309747 & $1.4 \times 10^{-155}$ & $-.998$ & *** \\
+  & Semi$\,\to\,$Low  & $-.052$ & 40072 & $3.1 \times 10^{-43}$ & $+.562$ & *** \\
 \bottomrule
 \multicolumn{4}{l}{\scriptsize Significance codes: *** $p < 0.001$.}
 \end{tabular}
@@ -378,22 +396,42 @@ KeyTerm$\uparrow$
 
 To assess H2, we use 
 Levene's test. Table~\ref{tab:levene} shows a striking finding: output variance \emph{decreases} monotonically with decreasing formalization.
-The IQR (interquartile range) follows the same pattern: $.204/.112/.041$ (word overlap) from high to low. This suggests that high-formal tasks produce a bimodal distribution (either close to the gold-standard SQL or completely wrong), while low-formal tasks consistently cover similar conceptual ground even when wording differs.
+The IQR (interquartile range) follows the same pattern: $.198/.110/.041$ (word overlap) from high to low. This suggests that high-formal tasks produce a bimodal distribution (either close to the gold-standard SQL or completely wrong), while low-formal tasks consistently cover similar conceptual ground even when wording differs.
 
 \begin{table}[ht]
 \centering
-\caption{Levene's test for equality of variances across formalization levels. Variance shown per level. Recomputed on the high-formal raw-text representation (Table~\ref{tab:quality}); the variance gradient is preserved (high $\gg$ semi $\gg$ low). Compared with the prior SQL-normalized computation: word overlap Var$_{\text{High}}$ $.0218 \to .0226$ (within tolerance); bigram $.0604 \to .0548$; key-term $.0346 \to .0240$; semi- and low-formal variances are unchanged.}
+\caption{Levene's test (median-centered) for equality of variances across formalization levels, on the unified raw-text representation (Table~\ref{tab:quality}). Variance shown per level; the gradient is high $\gg$ semi $\gg$ low for all metrics.}
 \label{tab:levene}
 \setlength{\tabcolsep}{6pt}
 \begin{tabular}{lrrrrrl}
 \toprule
 Metric & $W$ & $p$ & Var$_{\text{High}}$ & Var$_{\text{Semi}}$ & Var$_{\text{Low}}$ & Sig. \\
 \midrule
-Word overlap    & 186.39 & $1.3 \times 10^{-74}$  & .0226 & .0111 & .0008 & *** \\
-Bigram overlap  & 551.39 & $1.7 \times 10^{-189}$ & .0548 & .0066 & .0002 & *** \\
-Key-term recall & 213.97 & $1.6 \times 10^{-84}$  & .0240 & .0117 & .0008 & *** \\
+Word overlap    & 186.39 & $1.2 \times 10^{-74}$  & .0226 & .0115 & .0008 & *** \\
+Bigram overlap  & 551.39 & $1.7 \times 10^{-189}$ & .0548 & .0054 & .0002 & *** \\
+Key-term recall & 213.97 & $1.6 \times 10^{-84}$  & .0240 & .0118 & .0009 & *** \\
 \bottomrule
 \multicolumn{4}{l}{\scriptsize Significance codes: *** $p < 0.001$.}
+\end{tabular}
+\end{table}
+
+\paragraph{Separating across-run from across-task variance.}
+H2 concerns variance \emph{across repeated runs}, but the pooled per-record variance in Table~\ref{tab:levene} also absorbs \emph{between-task} dispersion (how much tasks differ from one another within a level). These are distinct quantities, and only the former is what H2 names. We therefore decompose them (Table~\ref{tab:variance-decomp}): for each task we compute the variance of word overlap across its $K\!=\!5$ runs (within-task, across-run), and separately the variance of per-task means (between-task). The pooled variance is dominated by the between-task component (e.g., at the high-formal level $.0187$ of the $.0226$ pooled variance is between-task), so the original Levene test primarily reflected task heterogeneity rather than run-to-run instability. Critically, however, the across-run variance---the quantity H2 actually predicts---exhibits the \emph{same} monotonic decrease with formalization ($.0050 \to .0017 \to .0005$; Kruskal-Wallis $H\!=\!51.1$, $p\!=\!7.9\times10^{-12}$). The refutation of H2 is thus robust to the measurement correction: whether measured within tasks or between tasks, variance decreases as formalization decreases.
+
+\begin{table}[ht]
+\centering
+\caption{Variance decomposition of word overlap by level (pooled over models). \emph{Within-task} is the mean over tasks of the variance across the $K\!=\!5$ runs of a task (the quantity H2 names); \emph{between-task} is the variance of per-task means; \emph{pooled} is the variance over all run-level records (as used in Table~\ref{tab:levene}). All three components decrease monotonically with formalization.}
+\label{tab:variance-decomp}
+\setlength{\tabcolsep}{7pt}
+\begin{tabular}{lrrrr}
+\toprule
+Level & \#Tasks & Within-task & Between-task & Pooled \\
+\midrule
+High & 100 & .00502 & .01866 & .02260 \\
+Semi &  59 & .00174 & .01013 & .01145 \\
+Low  &  31 & .00045 & .00045 & .00080 \\
+\bottomrule
+\multicolumn{5}{l}{\scriptsize Kruskal-Wallis on within-task variance across levels: $H\!=\!51.1$, $p\!=\!7.9\times10^{-12}$.}
 \end{tabular}
 \end{table}
 
@@ -405,9 +443,30 @@ Neither Llama nor Mistral achieves meaningful consistency across runs. Averaging
 % \subsection{Model Comparison and Length--Quality Mediation (H3)}
 \label{sec:model-comparison}
 
-Llama-3.1-8B significantly outperforms Mistral-7B on all quality metrics at the high-formal and semi-formal levels (Mann-Whitney $U$, Bonferroni-corrected $p < 10^{-5}$, rank-biserial $r = 0.16$--$0.48$). However, the two models converge at the low-formal level, with no significant difference on any metric ($p > 0.99$).
+On the recall-oriented metrics, Llama-3.1-8B scores higher than Mistral-7B at the high- and semi-formal levels (Mann-Whitney $U$, Bonferroni-corrected $p < 10^{-5}$), and the two models converge at the low-formal level ($p > 0.99$). This recall advantage, however, is an artifact of verbosity, and it reverses under precision (Table~\ref{tab:precision}). Because the recall metrics divide by $|W_{\text{gold}}|$ and do not penalize irrelevant prediction content, Llama's much longer outputs (high-formal: $7.0\times$ gold length vs.\ Mistral's $1.1\times$) inflate its recall. Precision---$|W_{\text{pred}} \cap W_{\text{gold}}| / |W_{\text{pred}}|$---and the harmonic-mean $F_1$ tell the opposite story at the high-formal level, where Mistral's concise queries achieve far higher precision ($.823$ vs.\ $.547$ word precision) and a higher $F_1$ ($.777$ vs.\ $.615$). Under $F_1$, then, Mistral is the stronger high-formal model, not Llama. At the semi-formal level the models are near-tied under $F_1$ ($.225$ vs.\ $.215$), and at the low-formal level they remain statistically indistinguishable on every measure. This shows that the apparent inter-model quality gap is largely a length effect rather than a difference in task competence.
 
-The evidence for H3 remains directionally consistent under the consistent text representation but with a smaller effect size than a prior representation-mixed analysis suggested. On the high-formal level, Llama's raw output is $7.00\times$ the gold-standard length against Mistral's $1.07\times$ (Table~\ref{tab:quality}); the resulting Llama-Mistral word-overlap gap is $.800 - .764 = .036$, against $.063$ when computed on the SQL-normalized representation. At the low-formal level the length differential vanishes ($0.6\times$ for both models) and the quality gap between models also vanishes ($.259$ for both). Both models exhibit the same directional quality gradient from high to low formalization, confirming that the pattern is not model-specific; the H3 prediction that the inter-model quality gap covaries with the response-length differential is therefore preserved in direction, but the high-formal effect size on consistent raw text is roughly $43\%$ smaller than on mixed-representation measurement. Full confirmation of H3 still requires precision-based metrics that penalize irrelevant content; see Section~\ref{sec:limitations}.
+\begin{table}[htbp]
+\centering
+\caption{Recall, precision, and $F_1$ by level and model, on the same unified raw-text word-set representation as Table~\ref{tab:quality} (the recall column matches Table~\ref{tab:quality}). Llama's recall lead at the high-formal level reverses under precision and $F_1$: its longer outputs recover more gold terms (recall) but at much lower precision.}
+\label{tab:precision}
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{llrrrrrr}
+\toprule
+& & \multicolumn{3}{c}{Word} & \multicolumn{3}{c}{Key-term} \\
+\cmidrule(lr){3-5}\cmidrule(lr){6-8}
+Level & Model & Rec. & Prec. & $F_1$ & Rec. & Prec. & $F_1$ \\
+\midrule
+High & Llama   & .800 & .547 & .615 & .791 & .555 & .620 \\
+High & Mistral & .764 & .823 & \textbf{.777} & .748 & .813 & \textbf{.763} \\
+Semi & Llama   & .251 & .212 & .225 & .181 & .153 & .162 \\
+Semi & Mistral & .181 & .273 & .215 & .124 & .195 & .149 \\
+Low  & Llama   & .231 & .398 & .291 & .204 & .352 & .257 \\
+Low  & Mistral & .229 & .396 & .290 & .205 & .353 & .259 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+With precision now in hand, H3 (length--quality mediation) is confirmed in its mechanism: greater response length raises recall-oriented scores without a corresponding gain in precision. The inter-model recall gap is largest where the length differential is largest (high-formal) and vanishes where both models produce comparably short outputs (low-formal, $0.6\times$ for both). Crucially, once irrelevant content is penalized, the verbosity premium not only disappears but inverts at the high-formal level, so Llama's higher recall reflects lexical overlap inflation rather than superior understanding. This resolves the qualification noted in earlier analyses that H3 could not be confirmed without precision-sensitive metrics.
 
 \subsection{Robustness and Validity Checks}
 \label{sec:within-domain}
@@ -417,12 +476,12 @@ A potential confound in the cross-level comparison is that the three formalizati
 \vspace{5pt}
 \noindent
 \textit{High-formal (SQL).}
-The 100 SQL tasks are tagged by difficulty: easy (20 tasks), medium (55 tasks), and hard (25 tasks). These difficulty levels represent a within-domain formalization gradient: easy queries have a more constrained output space ($C(T)$ closer to 1) than hard multi-table queries where multiple valid join strategies exist. Comparing word overlap across difficulty tags, we observe a decline from $.832$ (easy) to $.740$ (medium) to $.696$ (hard), mirroring the cross-level pattern within a single domain.
+The 100 SQL tasks are tagged by difficulty: easy (20 tasks), medium (55 tasks), and hard (25 tasks). These difficulty levels represent a within-domain formalization gradient: easy queries have a more constrained output space ($C(T)$ closer to 1) than hard multi-table queries where multiple valid join strategies exist. Comparing word overlap across difficulty tags, we observe a decline from $.831$ (easy) to $.798$ (medium) to $.708$ (hard), mirroring the cross-level pattern within a single domain.
 
 \vspace{5pt}
 \noindent
 \textit{Low-formal (management).}
-The 31 management tasks span 9 incident categories with two complexity levels (moderate and complex). Complex scenarios, which involve more stakeholders and competing objectives, yield lower gold-standard overlap ($.252$ vs.\ $.268$ for moderate), consistent with the prediction that expanding the solution space reduces overlap-based quality.
+The 31 management tasks span 9 incident categories with two complexity levels (moderate and complex). Complex scenarios, which involve more stakeholders and competing objectives, yield lower gold-standard overlap ($.223$ vs.\ $.240$ for moderate), consistent with the prediction that expanding the solution space reduces overlap-based quality.
 
 These within-domain results strengthen the claim that formalization, not domain, drives the quality gradient. The effect size is smaller within domains than across domains, as expected, since the within-domain formalization range is narrower.
 
@@ -438,6 +497,15 @@ These within-domain results strengthen the claim that formalization, not domain,
 % \label{sec:gold-robustness}
 
 A potential threat to construct validity arises when gold standards are generated by the same model family under evaluation, because recall-based overlap metrics may reward shared stylistic tendencies rather than genuine task understanding (i.e., models from the same family often exhibit similar lexical preferences, discourse structures, and reasoning phrasing). In this research, high-formal gold standards are human-curated reference SQL queries, initially created using ChatGPT 5.1 (OpenAI) tool assistance, but then fully tested, evaluated, and revised by a human expert and executed against an actual database. Semi-formal and low-formal gold standards were generated by Claude Sonnet 4.6 (Anthropic), a model architecturally and organizationally independent of both models under evaluation (Mistral-7B and Llama-3.1-8B). This reduces the risk of self-referential contamination: neither evaluated model could benefit from stylistic overlap with its own prior outputs in the gold standard. Additionally, the structured annotation prompts enforce self-containment (all gold-standard content must be traceable to the input text) and explicit reasoning structure, reducing the influence of model-specific stylistic preferences on the gold-standard answers. The quality gradient (H1) is consistent across all three levels, further supporting the robustness of the finding.
+
+\subsection{Validating the Formalization Metric $F(T)$}
+\label{sec:F-validation}
+
+A natural objection is that $F(T)$ merely relabels the three levels, adding no information beyond the categorical high/semi/low encoding. Because $F(T)$ is computed per task instance (Section~\ref{sec:method}), we can test this directly with a nested-model ablation over all 190 tasks, regressing per-task mean quality (word overlap) on: M1, the categorical level alone; M2, $F(T)$ alone; and M3, level $+\,F(T)$. If $F(T)$ carried no information beyond the level labels, M3 would not improve on M1.
+
+It does. M3 significantly improves fit over M1 (nested $F_{1,186}=9.31$, $p=2.6\times10^{-3}$; $\Delta\text{AIC}=-7.3$), with a positive within-model coefficient on $F(T)$ ($\beta_F=0.408 \pm 0.134$, $t=3.05$, $p=2.6\times10^{-3}$). Adding a per-level $F$ slope (M4) does not further improve fit ($p=0.77$), so a single global slope suffices. The instance-level $F(T)$ therefore predicts output quality \emph{beyond} the level to which a task belongs. In contrast, $F(T)$ does \emph{not} predict per-task quality \emph{variance} beyond the level encoding ($p=0.65$), consistent with the refutation of H2: variance is governed by level-scale bimodality rather than by fine-grained formalization.
+
+Within-level Pearson correlations between $F(T)$ and mean quality are positive at all three levels (high $r=0.22$, $p=0.03$; semi $r=0.23$, $p=0.08$; low $r=0.42$, $p=0.02$), showing that the signal is not purely a between-level artifact. We further guard against a circularity concern---that both $F(T)$ (through gold-based $S(T)$) and word overlap (through $|W_{\text{gold}}|$) depend on gold-text features---by partialling out gold token count and keyword fraction. The within-level $F(T)$ signal survives robustly at the low-formal level (partial $R^2=0.14$; coefficient inflation $2.2\%$) but is substantially attenuated at the high- and semi-formal levels (inflation $168\%$ and $78\%$; partial $R^2 \leq 0.02$), indicating that the within-level predictive value of $F(T)$ is strongest where the output space is least syntactically constrained. Accordingly, we treat the \emph{cross-level} ablation (M3 vs.\ M1) as the primary evidence that $F(T)$ adds information beyond the categorical encoding, and report the within-level correlations with this caveat.
 
 % ══════════════════════════════════════════════════════════════
 \section{Discussion}
@@ -490,14 +558,14 @@ H1 & Output quality decreases as domain formalization decreases & Supported \\
 \addlinespace[2pt]
 H2 & Output variance increases as domain formalization decreases & Not supported \\
 \addlinespace[2pt]
-H3 & Greater length has higher recall independent of formalization level & Partially supported  \\
+H3 & Greater length has higher recall independent of formalization level & Supported  \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Of the three hypotheses derived from the formalization hypothesis and related work, one is supported, one is partially supported, and one is refuted. H1 (quality gradient) is supported: output quality declines monotonically with formalization.
+Of the three hypotheses derived from the formalization hypothesis and related work, two are supported and one is refuted. H1 (quality gradient) is supported: output quality declines sharply as formalization decreases, with the dominant drop at the high-to-semi transition and a near-plateau (with a mild reversal) between semi and low.
 %($p < 10^{-256}$).
-H3 (length--quality mediation) is partially supported with qualifications: the inter-model quality gap covaries directionally with the response-length differential, but the high-formal effect on a consistent raw-text representation is roughly $43\%$ smaller than under earlier mixed-representation measurement, and full confirmation requires precision-based metrics. H2 (variance gradient) is refuted, yielding the most consequential finding: output variance \emph{decreases} rather than increases with decreasing formalization.
+H3 (length--quality mediation) is supported: the inter-model recall gap covaries with the response-length differential and, once precision is computed (Table~\ref{tab:precision}), the verbosity premium is shown to be lexical rather than substantive---Llama's high-formal recall lead inverts under precision and $F_1$. H2 (variance gradient) is refuted, yielding the most consequential finding: output variance \emph{decreases} rather than increases with decreasing formalization.
 %($p < 10^{-76}$). 
 Formal tasks produce bimodal 
 %hit-or-miss 
@@ -531,7 +599,7 @@ The most consequential finding is the refutation of H2: output variance \textit{
 % % I didn't know whether 'stylistic contamination' is something well known.
 % %the planned expert evaluation (Section~\ref{sec:human-results}) will provide independent validation using the unified 0--3 rubric.
 
-H1 was supported: output quality declined monotonically as formalization decreased. Because the same pattern appeared both across domains and within domains of differing complexity, the results suggest that formalization itself, rather than domain alone, influences LLM reasoning quality. This extends the conceptual modeling intuition that semantic precision improves automated reasoning from LLMs.
+H1 was supported: output quality declined sharply as formalization decreased, with the largest drop at the high-to-semi transition. Because the same pattern appeared both across domains and within domains of differing complexity, the results suggest that formalization is associated with LLM reasoning quality beyond domain alone (we hedge the causal reading in Section~\ref{sec:limitations}). This extends the conceptual modeling intuition that semantic precision improves automated reasoning from LLMs.
 
 
 %\subsection{H3 Partially Supported: Response Length Mediates Quality Scores}
@@ -540,13 +608,11 @@ H1 was supported: output quality declined monotonically as formalization decreas
 % % I THINK THE ABOVE SEnatence NEEDS A LITTLE REWRITING.
 % H3 cannot be fully confirmed, however, without precision-based metrics that penalize irrelevant content. Future work should compute precision alongside the current recall-oriented metrics to quantify the mediating role of response length.
 
-H3 received partial support with qualifications. Longer responses were associated with higher recall-oriented scores, particularly for Llama at the high-formal level; when length and overlap are computed on a single raw-text representation rather than the prior mix of raw and SQL-normalized text, the directional claim is preserved but the high-formal effect size shrinks by roughly $43\%$. Precision-oriented metrics would be required to determine whether the remaining verbosity premium reflects genuine understanding or lexical overlap inflation.
+H3 received support. Longer responses were associated with higher recall-oriented scores, particularly for Llama at the high-formal level. Computing precision and $F_1$ alongside recall (Table~\ref{tab:precision}) resolves whether this verbosity premium reflects genuine understanding or lexical overlap inflation: it is inflation. At the high-formal level Mistral's concise outputs achieve substantially higher precision ($.823$ vs.\ $.547$) and $F_1$ ($.777$ vs.\ $.615$) than Llama's verbose ones, inverting the recall-based ranking. Response length therefore mediates the recall-based quality scores without a corresponding gain in precision, exactly as H3 predicts.
 
 \subsection{Pairwise Comparison Anomaly and Consistency}
 
-The pairwise results (Table~\ref{tab:pairwise}) reveal a nuanced pattern. For word overlap, the semi$\,\to\,$low transition is \emph{not} significant ($p = 1.00$) although high$\,\to\,$semi and high$\,\to\,$low are highly significant, indicating that the %dominant
-largest
-quality drop occurs at the high$\,\to\,$semi boundary and that semi- and low-formal tasks occupy a similar quality plateau. Key-term recall shows a significant \emph{reversal} at the semi$\,\to\,$low transition ($\Delta = -.063$, $r = +.608$): low-formal tasks score higher than semi-formal. This likely reflects vocabulary differences (legal gold-standard answers use specialized terminology that models rarely reproduce, while management gold-standard answers use general analytical vocabulary that models match more easily) and shows the need for evaluation instruments that are independent of the vocabulary found in a domain.
+The pairwise results (Table~\ref{tab:pairwise}) reveal a nuanced pattern. The high$\,\to\,$semi and high$\,\to\,$low transitions are overwhelmingly significant with near-maximal effect sizes ($|r| > .94$) for every metric, so the dominant quality drop occurs at the high$\,\to\,$semi boundary. The semi$\,\to\,$low transition, by contrast, is small in magnitude for all metrics ($|\Delta| \leq .05$) but---owing to the large sample---statistically significant, and for word and key-term overlap it is a mild \emph{reversal}: low-formal tasks score slightly \emph{higher} than semi-formal ($\Delta = -.014$, $r = +.308$ for word; $\Delta = -.052$, $r = +.562$ for key-term). This likely reflects vocabulary differences (legal gold-standard answers use specialized terminology that models rarely reproduce, while management gold-standard answers use general analytical vocabulary that models match more easily) and shows the need for evaluation instruments that are independent of the vocabulary found in a domain.
 %invariant 
 %to domain vocabulary, 
 This suggests the use of an assessment by an expert and within-domain analysis.
@@ -584,7 +650,7 @@ These observations help explain the formalization gradient. As formalization dec
 \subsection{Limitations}
 \label{sec:limitations}
 
-The main results rely on recall-oriented text-overlap metrics (word, bigram, key-term recall) as proxies for semantic quality; expert annotation under the unified $0$--$3$ rubric has been started but is not complete, so the findings lack independent human validation. The overlap metrics are recall-biased, dividing by $|W_{\text{gold}}|$ and not penalizing irrelevant prediction content, so Llama's higher scores may partly reflect verbosity rather than superior understanding.
+The main results rely on text-overlap metrics as proxies for semantic quality; expert annotation under the unified $0$--$3$ rubric has been started but is not complete, so the findings lack independent human validation. The primary metrics are recall-oriented (dividing by $|W_{\text{gold}}|$ and not penalizing irrelevant content), which biases them toward verbose outputs; we mitigate this by reporting precision and $F_1$ alongside recall (Table~\ref{tab:precision}), which reveal that Llama's high-formal recall lead is verbosity-driven and reverses under precision. Overlap metrics of either kind remain coarser than execution-based or expert judgment, which the planned SQL execution evaluation and rubric annotation will supply.
 
 Both evaluated models are $7$--$8$B parameters, and all runs use $T\!=\!0.7$. Generalization to $70$B+ models, where better instruction following and richer internal representations could alter the formalization gradient, is not warranted. Likewise, the variance paradox as reported here is strictly a $T\!=\!0.7$ phenomenon; a $T \in \{0, 0.3, 1.0\}$ sweep is needed to establish whether it persists across sampling regimes.
 
@@ -596,7 +662,7 @@ Semi-formal and low-formal gold standards were generated by Claude Sonnet 4.6 ra
 
 This research investigated how task formalization affects LLM performance in conceptual modeling applications. Across high-formal SQL generation, semi-formal legal clause interpretation, and low-formal management decision-making, output quality improved as formalization increased; output variance, however, followed the opposite pattern. High-formal tasks produced higher variance, while low-formal tasks produced lower but more consistently moderate scores. Formalization therefore raises expected quality but does not make LLM outputs more predictable; less formalized tasks are more susceptible to context drift and normative ambiguity because their conceptual boundaries and evaluation criteria are less explicit. For conceptual modeling, formal representations can improve LLM-assisted reasoning provided that verification mechanisms accompany them.
 
-Several extensions follow directly. The dominant quality drop occurs at the high$\,\to\,$semi boundary, and key-term recall reverses at the semi$\,\to\,$low transition; whether this reflects genuine non-monotonicity in the gradient or an artefact of domain vocabulary warrants investigation with richer instruments, including the expert $0$--$3$ rubric and within-domain complexity analysis. We have also prepared an obituary dataset (100 obituaries, two per US state, with annotated person/relation extractions corresponding to a conceptual model) as a semi-structured complement to the SQL benchmark; this dataset will join future experiments alongside additional datasets, larger models, and temperature sweeps.\footnote{Both datasets are available upon request.}
+Several extensions follow directly. The dominant quality drop occurs at the high$\,\to\,$semi boundary, and both word and key-term recall show a mild reversal at the semi$\,\to\,$low transition; whether this reflects genuine non-monotonicity in the gradient or an artefact of domain vocabulary warrants investigation with richer instruments, including the expert $0$--$3$ rubric and within-domain complexity analysis. We have also prepared an obituary dataset (100 obituaries, two per US state, with annotated person/relation extractions corresponding to a conceptual model) as a semi-structured complement to the SQL benchmark; this dataset will join future experiments alongside additional datasets, larger models, and temperature sweeps.\footnote{Both datasets are available upon request.}
 
 % ══════════════════════════════════════════════════════════════
 \bibliographystyle{splncs04}

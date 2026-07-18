@@ -58,3 +58,14 @@ data Kopie/
 results_raw/
 *.log
 
+# LaTeX build artifacts
+*.aux
+*.bbl
+*.blg
+*.out
+*.synctex.gz
+*.fdb_latexmk
+*.fls
+*.toc
+docs/*.pdf
+

@@ -98,7 +98,41 @@ class LocalChatModel:
             )
         text = self.tokenizer.decode(output_ids[0], skip_special_tokens=True)
         return text
-    
+
+    def generate_completion(self, prompt: str, max_new_tokens: int = 256, temperature: float = 0.7) -> str:
+        """
+        Generate and return ONLY the newly generated text, sliced by token count.
+
+        This avoids the character-offset prompt stripping (``text[len(prompt):]``)
+        used elsewhere, which misaligns for tokenizers whose decode round-trip
+        differs in length from the raw prompt string (e.g., Llama's BOS and
+        leading-space handling), truncating the start of the actual answer.
+
+        Args:
+            prompt: Input text prompt
+            max_new_tokens: Maximum number of tokens to generate
+            temperature: Sampling temperature
+
+        Returns:
+            The generated completion only (prompt tokens removed by slicing).
+        """
+        inputs = self.tokenizer(prompt, return_tensors="pt")
+        device = next(self.model.parameters()).device
+        inputs = {k: v.to(device) for k, v in inputs.items()}
+        num_input_tokens = inputs["input_ids"].shape[1]
+
+        with torch.no_grad():
+            output_ids = self.model.generate(
+                **inputs,
+                max_new_tokens=max_new_tokens,
+                do_sample=True,
+                temperature=temperature,
+                top_p=0.95,
+                pad_token_id=self.tokenizer.eos_token_id,
+            )
+        gen_ids = output_ids[0][num_input_tokens:]
+        return self.tokenizer.decode(gen_ids, skip_special_tokens=True)
+
     def generate_chat(self, messages: list, max_new_tokens: int = 256, temperature: float = 0.7) -> str:
         """
         Generate response from chat messages (for chat-formatted models).
