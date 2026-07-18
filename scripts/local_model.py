@@ -88,14 +88,13 @@ class LocalChatModel:
         inputs = {k: v.to(device) for k, v in inputs.items()}
         
         with torch.no_grad():
-            output_ids = self.model.generate(
-                **inputs,
-                max_new_tokens=max_new_tokens,
-                do_sample=True,
-                temperature=temperature,
-                top_p=0.95,
-                pad_token_id=self.tokenizer.eos_token_id,
-            )
+            gen_kwargs = dict(max_new_tokens=max_new_tokens,
+                              pad_token_id=self.tokenizer.eos_token_id)
+            if temperature and temperature > 0:  # T=0 -> deterministic greedy decoding
+                gen_kwargs.update(do_sample=True, temperature=temperature, top_p=0.95)
+            else:
+                gen_kwargs.update(do_sample=False)
+            output_ids = self.model.generate(**inputs, **gen_kwargs)
         text = self.tokenizer.decode(output_ids[0], skip_special_tokens=True)
         return text
 
@@ -194,13 +193,13 @@ class LocalChatModel:
             inputs = {k: v.to(device) for k, v in inputs.items()}
 
             with torch.no_grad():
-                output_ids = self.model.generate(
-                    **inputs,
-                    max_new_tokens=max_new_tokens,
-                    do_sample=True,
-                    temperature=temperature,
-                    pad_token_id=self.tokenizer.eos_token_id,
-                )
+                gen_kwargs = dict(max_new_tokens=max_new_tokens,
+                                  pad_token_id=self.tokenizer.eos_token_id)
+                if temperature and temperature > 0:  # T=0 -> deterministic greedy
+                    gen_kwargs.update(do_sample=True, temperature=temperature)
+                else:
+                    gen_kwargs.update(do_sample=False)
+                output_ids = self.model.generate(**inputs, **gen_kwargs)
 
             text = self.tokenizer.decode(output_ids[0], skip_special_tokens=True)
             metrics = tracker.compute_efficiency_metrics()
@@ -246,19 +245,22 @@ class LocalChatModel:
             if tracker:
                 tracker.register_hooks(self.model)
 
+            # T=0 -> deterministic greedy: only one distinct sequence is possible.
+            sampling = bool(temperature and temperature > 0)
+            n_seq = num_sequences if sampling else 1
             with torch.no_grad():
-                output_ids = self.model.generate(
-                    **inputs,
-                    max_new_tokens=max_new_tokens,
-                    do_sample=True,
-                    temperature=temperature,
-                    num_return_sequences=num_sequences,
-                    pad_token_id=self.tokenizer.eos_token_id,
-                )
+                gen_kwargs = dict(max_new_tokens=max_new_tokens,
+                                  num_return_sequences=n_seq,
+                                  pad_token_id=self.tokenizer.eos_token_id)
+                if sampling:
+                    gen_kwargs.update(do_sample=True, temperature=temperature, top_p=0.95)
+                else:
+                    gen_kwargs.update(do_sample=False)
+                output_ids = self.model.generate(**inputs, **gen_kwargs)
 
             texts = [
                 self.tokenizer.decode(output_ids[i], skip_special_tokens=True)
-                for i in range(num_sequences)
+                for i in range(n_seq)
             ]
 
             if tracker:
@@ -268,9 +270,9 @@ class LocalChatModel:
                 metrics['num_input_tokens'] = num_input_tokens
                 metrics['num_output_tokens'] = num_output_tokens
                 metrics['total_tokens_processed'] = num_input_tokens + num_output_tokens
-                metrics_list = [metrics] * num_sequences
+                metrics_list = [metrics] * len(texts)
             else:
-                metrics_list = [{} for _ in range(num_sequences)]
+                metrics_list = [{} for _ in range(len(texts))]
 
             return texts, metrics_list
 

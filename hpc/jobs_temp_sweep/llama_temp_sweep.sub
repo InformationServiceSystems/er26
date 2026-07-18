@@ -1,0 +1,30 @@
+# HTCondor submit file — Llama-3.1-8B temperature sweep (three-domain paper).
+# Runs high/semi/low at T in {0.0,0.3,0.7,1.0}. See run_temp_sweep.sh.
+# Prereq: git pull / rsync the updated scripts into $HOME/er26 first.
+# Usage: condor_submit hpc/jobs_temp_sweep/llama_temp_sweep.sub
+
+universe                = docker
+docker_image            = nvcr.io/nvidia/pytorch:25.01-py3
+
+executable              = hpc/jobs_temp_sweep/run_temp_sweep.sh
+arguments               = llama meta-llama/Llama-3.1-8B-Instruct
+
+output                  = hpc/logs/tempsweep_llama_$(Cluster).out
+error                   = hpc/logs/tempsweep_llama_$(Cluster).err
+log                     = hpc/logs/tempsweep_llama_$(Cluster).log
+
++WantGPUHomeMounted     = true
+
+# Route to H200 (preferred) or Blackwell GPU machines
+Requirements            = (Machine == "tig.hpc.uni-saarland.de" || Machine == "tyr1.hpc.uni-saarland.de" || Machine == "tyr2.hpc.uni-saarland.de" || Machine == "forseti.hpc.uni-saarland.de" || Machine == "fjolnir.hpc.uni-saarland.de" || Machine == "fornjoter.hpc.uni-saarland.de")
+Rank                    = (Machine == "tig.hpc.uni-saarland.de") * 3 + (Machine == "tyr1.hpc.uni-saarland.de") * 3 + (Machine == "tyr2.hpc.uni-saarland.de") * 3 + (Machine == "forseti.hpc.uni-saarland.de") * 2 + (Machine == "fjolnir.hpc.uni-saarland.de") * 2 + (Machine == "fornjoter.hpc.uni-saarland.de") * 2
+
+request_gpus            = 1
+request_cpus            = 4
+request_memory          = 32G
+request_disk            = 50G
+
+# ~3040 generations; expect several hours
++MaxRuntime             = 86400
+
+queue

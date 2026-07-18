@@ -35,6 +35,8 @@ def parse_args():
                         help=f"Output JSONL path (default: {DEFAULT_OUTPUT})")
     parser.add_argument("--no-4bit", action="store_true", default=not DEFAULT_4BIT,
                         help="Disable 4-bit quantization (use FP16)")
+    parser.add_argument("--temperature", type=float, default=0.7,
+                        help="Sampling temperature (0 = greedy/deterministic)")
     parser.add_argument("--num_runs", type=int, default=1,
                         help="Number of runs per task (default: 1; set to 5 for H2 consistency)")
     return parser.parse_args()
@@ -114,6 +116,7 @@ def main():
     """Run high-formal SQL tasks locally."""
     args = parse_args()
     num_runs = args.num_runs
+    temperature = args.temperature
     model_dir = args.model
     out_path = Path(args.output)
     load_in_4bit = not args.no_4bit
@@ -144,11 +147,11 @@ def main():
 
             if num_runs > 1:
                 texts, metrics_list = model.generate_batch(
-                    prompt, num_sequences=num_runs, max_new_tokens=256, temperature=0.7
+                    prompt, num_sequences=num_runs, max_new_tokens=256, temperature=temperature
                 )
             else:
                 text, metrics = model.generate_with_efficiency(
-                    prompt, max_new_tokens=256, temperature=0.7
+                    prompt, max_new_tokens=256, temperature=temperature
                 )
                 texts, metrics_list = [text], [metrics]
 
