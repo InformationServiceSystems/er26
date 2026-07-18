@@ -1,0 +1,266 @@
+================================================================================
+RESPONSE TO REVIEWERS
+Submission 51: "Formalization Matters"
+================================================================================
+
+We thank the meta-reviewer and all three reviewers for their careful and
+detailed reading. The reviews identified several substantive methodological
+weaknesses, and we have revised the paper accordingly. This letter summarizes
+the major changes and then responds to each reviewer point by point. Where a
+concern could not be fully resolved within the current study design, we say so
+candidly rather than overstate what the revision achieves.
+
+Throughout, section and table numbers refer to the revised manuscript.
+
+--------------------------------------------------------------------------------
+SUMMARY OF MAJOR CHANGES
+--------------------------------------------------------------------------------
+
+1. Execution-based SQL evaluation (Reviewer 1's central objection). The
+   high-formal level is now scored with Spider-style execution accuracy: gold
+   and predicted queries are executed against a populated Northwind database and
+   result sets compared exactly. New Section "High-Formal Execution Accuracy"
+   and Table (tab:sql-exec). This corroborates the overlap-based model ranking
+   on an objective metric and yields an execution-grounded within-domain
+   difficulty gradient.
+
+2. Formalization metric F(T) operationalized per instance and validated. F(T)
+   is now computed per task (not merely per level); a nested-model ablation
+   shows it predicts quality BEYOND the categorical high/semi/low encoding
+   (new Section "Validating the Formalization Metric F(T)", Table tab:F-dims),
+   including a circularity control.
+
+3. Precision-sensitive metrics added. We now report precision and F1 alongside
+   recall (Table tab:precision); this reveals that the recall-based inter-model
+   ranking is a verbosity artifact that reverses under precision.
+
+4. Variance analysis corrected. We decompose across-run from across-task
+   variance (Table tab:variance-decomp) and show the variance paradox holds for
+   the across-run quantity the hypothesis actually names.
+
+5. Unified evaluation representation. All overlap metrics are recomputed on a
+   single raw-text word-set representation, removing a prior inconsistency.
+
+6. Temperature-robustness experiment. We re-ran the full benchmark at
+   T in {0, 0.3, 0.7, 1.0} (new Section "Robustness to Sampling Temperature",
+   Table tab:temp-sweep). The variance paradox and the dominant quality drop
+   persist at every temperature for both models.
+
+7. Framing and presentation. Revised title and an explicit scope statement;
+   expanded related work on AI-assisted conceptual modeling; hedged causal and
+   design claims; corrected wording.
+
+--------------------------------------------------------------------------------
+RESPONSE TO THE META-REVIEW
+--------------------------------------------------------------------------------
+
+The meta-review consolidated four blocking concerns.
+
+(a) Evaluation methodology for the high-formal SQL task.
+    Addressed. We added execution-based evaluation (Spider-style exact
+    result-set match against a populated Northwind database; Section
+    "High-Formal Execution Accuracy", Table tab:sql-exec) and precision/F1
+    metrics (Table tab:precision). Overlap metrics are retained only as the
+    cross-level common denominator, with the objective execution metric
+    reported for the level where correctness is decidable.
+
+(b) Domain-formalization confound.
+    Partially addressed, and now discussed candidly. We strengthened the
+    within-domain analysis (which now includes the execution-grounded SQL
+    difficulty gradient) and added the per-instance F(T) validation, both of
+    which show the gradient operating within a single domain. We also hedged
+    the causal language throughout. We are explicit in the Limitations that the
+    three-domain design cannot fully isolate formalization from domain, and we
+    frame the cross-level results as associational.
+
+(c) Study repeatability and generalizability.
+    Addressed for temperature (full T in {0,0.3,0.7,1.0} sweep; the findings
+    persist). We release all task data, runners, evaluators, and analysis
+    scripts, and report the fixed protocol (K=5 repeats, documented seeds and
+    settings). Generalization to substantially larger (70B+) models is
+    identified as future work.
+
+(d) Validity of LLM-generated gold standards.
+    Partially addressed. The disclosure is moved from a footnote into the main
+    text (Robustness and Validity Checks). We explain the family-independence
+    rationale (semi/low gold produced by a model from neither evaluated family)
+    and the self-containment constraints on the annotation prompts. A unified
+    0-3 expert rubric and a stratified annotation sample have been prepared;
+    the two-annotator scoring is in progress and is the remaining step.
+
+--------------------------------------------------------------------------------
+RESPONSE TO REVIEWER 1
+--------------------------------------------------------------------------------
+
+R1.1 "Overlap metrics for SQL instead of execution/AST equivalence; this
+      undermines the strongest evidence for H1 and affects the variance
+      conclusions."
+    FIXED. We added execution-based evaluation for the high-formal level
+    (Section "High-Formal Execution Accuracy", Table tab:sql-exec). Gold and
+    predicted SQL are executed against a populated Northwind database (DuckDB)
+    and result sets compared exactly (order-insensitive unless ORDER BY). Under
+    this objective metric, Mistral scores 49% and Llama 61% exact result-set
+    accuracy over the 95 gradeable tasks (five gold queries use constructs
+    outside the engine's dialect and are excluded). Two points now reinforced
+    in the paper: (i) the execution ranking agrees with the overlap and F1
+    rankings, so the model comparison is not a proxy artifact; and (ii)
+    accuracy declines with query difficulty (easy>medium>hard), an
+    execution-grounded within-domain gradient.
+
+R1.2 "Variance analysis may conflate across-run variability with across-task
+      dispersion."
+    FIXED. H2 concerns across-RUN variance, but the pooled per-record variance
+    also absorbs between-task dispersion. We now decompose the two
+    (Table tab:variance-decomp): within-task (across the K=5 runs of a task)
+    versus between-task (variance of per-task means). We acknowledge the
+    original pooled test was dominated by between-task dispersion, but show that
+    the across-run variance -- the quantity H2 names -- exhibits the same
+    monotonic decrease with formalization (Kruskal-Wallis p = 7.9e-12), so the
+    refutation of H2 is robust to the correction.
+
+R1.3 "F(T) not instantiated and validated quantitatively; unclear whether it is
+      per-instance or per-level."
+    FIXED. F(T) is now computed PER TASK INSTANCE from task metadata and
+    gold-output structural features (Section "Method"; Table tab:F-dims). We add
+    a nested-model ablation over all 190 tasks (Section "Validating the
+    Formalization Metric F(T)"): F(T) significantly improves fit over the
+    categorical level encoding (nested F = 9.31, p = 0.0026), confirming it
+    carries information beyond the three labels. We also report within-level
+    correlations and a circularity control that partials out gold-text features;
+    we treat the cross-level ablation as primary and report the within-level
+    signal with this caveat.
+
+R1.4 "Semi- and low-formal gold standards are LLM-generated; expert validation
+      is incomplete."
+    Partially addressed. The provenance is now discussed in the main text
+    (Robustness and Validity Checks) with the family-independence rationale and
+    the self-containment constraints on the generation prompts. A unified 0-3
+    expert rubric and a stratified sample are prepared; the two-annotator
+    scoring is in progress and is stated as the remaining validation step.
+
+R1.5 "Expand precision-sensitive metrics."
+    FIXED. Precision and F1 are reported alongside recall (Table tab:precision).
+    They show that Llama's high-formal recall advantage is driven by verbosity
+    and reverses under precision (Mistral has higher precision and F1); H3
+    (length-quality mediation) is accordingly now supported with a demonstrated
+    mechanism rather than a conjecture.
+
+--------------------------------------------------------------------------------
+RESPONSE TO REVIEWER 2
+--------------------------------------------------------------------------------
+
+R2.1 "Title and framing imply all three tasks involve explicit conceptual
+      modeling; only the SQL task does."
+    FIXED. The title no longer claims conceptual modeling across all tasks. We
+    added an explicit scope statement in the Introduction: only the high-formal
+    task operates over an explicit conceptual model (the relational schema); the
+    semi- and low-formal tasks are reasoning tasks over progressively less
+    formal representations. The study measures how representation formality
+    affects LLM outputs, not how LLMs construct conceptual models.
+
+R2.2 "Hypotheses appear disconnected from the research problem."
+    Partially addressed. We added the scope framing above and made the
+    continuous-dimension contribution explicit in the Introduction so the
+    hypotheses follow more naturally from the identified gaps. We did not
+    fully restructure the Introduction-to-hypotheses flow and can do so if the
+    reviewer prefers.
+
+R2.3 "Domain-formalization confound is a fundamental threat to the central
+      causal claim."
+    Partially addressed, and now stated candidly. We strengthened the
+    within-domain evidence (SQL difficulty gradient, now also on execution
+    accuracy; management complexity gradient) and the per-instance F(T)
+    validation, both of which show the gradient within a single domain. We
+    hedged all causal language (e.g., "formalization is associated with quality
+    beyond domain alone") and state plainly in the Limitations that the
+    three-domain design cannot fully isolate formalization from domain. We agree
+    a same-domain design is the definitive remedy; we note it as the principal
+    direction for future work.
+
+R2.4 "Gold-standard validity concern must move from a footnote to the main text
+      and be addressed with rigor."
+    Addressed. The disclosure is now in the main text (Robustness and Validity
+    Checks), with the model-family-independence argument, the self-containment
+    constraints, and the planned expert rubric. Full expert validation is in
+    progress.
+
+R2.5 "F(T) is not anchored to the data in the tables; Results contains
+      methodological content."
+    Addressed for F(T): its three dimensions are now anchored to concrete
+    per-level values in Table tab:F-dims and validated in a dedicated section.
+    We also moved representation-choice details into the Method. We reviewed the
+    Method/Results boundary and can relocate further material if desired.
+
+R2.6 "State the continuous-dimension treatment explicitly as a contribution."
+    FIXED. The Introduction now lists, as a contribution, that we treat
+    formalization as a continuous dimension measured at three points via a
+    per-instance metric shown to predict quality beyond the categorical labels.
+
+R2.7 (p11) "Clarify whether the data show verification/retry mechanisms would be
+      sufficient."
+    FIXED. We now state that the data establish the NEED for verification (the
+    bimodal distribution and 49-61% execution accuracy) but do not establish
+    that any particular mitigation is sufficient; verification and retry-and-
+    select are framed as advisable design heuristics warranting further study,
+    not proven remedies.
+
+R2.8 (p11) "The claim that formalization rather than domain influences quality
+      is undermined by the confound and should be hedged."
+    FIXED. Hedged as described in R2.3.
+
+R2.9 (p14) "'This research investigated' should attribute agency to the
+      researchers."
+    FIXED. Changed to "The authors investigated."
+
+--------------------------------------------------------------------------------
+RESPONSE TO REVIEWER 3
+--------------------------------------------------------------------------------
+
+R3.1 "Related work: remove the general description of conceptual modeling; add
+      more from AI-assisted modeling; strengthen justification via comparative
+      analysis."
+    FIXED. We added a paragraph on LLM-assisted conceptual modeling (Camara et
+    al., Fill et al., Harer, and recent ER-community work) and positioned our
+    contribution comparatively: prior work adopts a generation framing and
+    evaluates ad hoc, whereas we provide a controlled measurement of how the
+    formalization level of the representation affects output quality and
+    consistency, which informs when those generation methods can be trusted.
+
+R3.2 "Specify the rationale and scientific grounds of the experiment design and
+      its robustness; clarify repeatability and generalization."
+    Addressed. The design rationale (self-contained inputs, gold standards, and
+    graded complexity as invariants that isolate the formalization variable) is
+    stated in the Method. For robustness/generalizability we added the
+    execution-based evaluation and the temperature sweep (Table tab:temp-sweep;
+    both central findings persist across T in {0,0.3,0.7,1.0}). For
+    repeatability we release the datasets, runners, evaluators, and analysis
+    scripts and report the fixed generation protocol (K=5, temperature, token
+    caps). Larger-model generalization is noted as future work.
+
+R3.3 "Theoretical implications; translation into actionable artifacts."
+    Partially addressed. We frame F(T) as an a-priori risk estimator for
+    LLM-assisted modeling (higher formalization predicts higher expected quality
+    but wider variance), locate the reliability boundary at the high-to-semi
+    transition, and release the benchmark and the F(T)/evaluation tooling as
+    reusable artifacts. A deeper theoretical treatment is an avenue we are happy
+    to expand.
+
+--------------------------------------------------------------------------------
+REMAINING LIMITATIONS (STATED HONESTLY)
+--------------------------------------------------------------------------------
+
+- Expert rubric annotation is prepared (unified 0-3 rubric, stratified sample)
+  but the two-annotator scoring is not yet complete; until it is, the semi- and
+  low-formal results rest on overlap metrics against LLM-generated references.
+- The cross-domain confound is mitigated (within-domain gradients, F(T),
+  execution grounding) and candidly discussed, but not eliminated by the
+  three-domain design; a same-domain formalization gradient is the definitive
+  remedy and our main future direction.
+- Generalization to 70B+ models is not evaluated.
+
+We believe the revision substantially strengthens the empirical evidence,
+particularly by replacing the overlap proxy with execution-based evaluation at
+the high-formal level, validating F(T) as more than a relabeling of the three
+levels, correcting the variance analysis, and demonstrating that the central
+findings persist across sampling temperatures. We thank the reviewers again for
+feedback that materially improved the paper.
