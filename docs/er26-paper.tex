@@ -11,7 +11,7 @@
 \usepackage{array}
 \usepackage{ragged2e}
 
-\title{Formalization Matters: Conceptual Modeling with Large Language Models in High, Semi and Low-Formal Tasks}
+\title{Formalization Matters: Large Language Model Output Quality and Consistency Across High-, Semi-, and Low-Formal Tasks}
 
 \titlerunning{Formalization Matters}
 
@@ -43,7 +43,7 @@ Conceptual modeling remains challenging because it requires understanding and re
 
 Generative AI systems perform well on concrete, well-studied tasks such as text summarization~\cite{DBLP:conf/acl/LewisLGGMLSZ20}, image generation~\cite{rombach2022high}, and code or math benchmarks~\cite{DBLP:conf/nips/LewkowyczADDMRS22,li2022alphacode}. For richer applications, however, they remain prone to hallucination~\cite{huang2025survey,ji2023survey}, failures of contextual nuance and representational harms~\cite{bender2021dangers}, and uneven performance across reasoning, factuality, and interaction tasks~\cite{bang2023multitask}. The objective of this research is to identify which conceptual modeling tasks LLMs handle well along the structured-to-unstructured continuum.
 
-To carry out our research we build benchmarks for three levels of formalization that capture how structured a domain is. We analyze results for quality and consistency, and discuss the challenges of context drift, variability, and normative ambiguity. We operationalize \emph{formalization} as the degree to which a task's input constraints, solution space, and evaluation criteria are explicitly specified, based on whether the applications have formal, semi-formal, and informal representations~\cite{mylopoulos1992conceptual,olive2007conceptual,DBLP:journals/isj/WandW93}. SQL generation (formal domain) from a relational schema provides a single correct answer that is verifiable by execution (running a query). Management decisions (low-formal domain) require weighing competing stakeholder interests with no objectively correct solution. Legal interpretations (semi-formal domain) are based on laws but constrained by text and require interpretive reasoning.
+To carry out our research we build benchmarks for three levels of formalization that capture how structured a domain is. We analyze results for quality and consistency, and discuss the challenges of context drift, variability, and normative ambiguity. We operationalize \emph{formalization} as the degree to which a task's input constraints, solution space, and evaluation criteria are explicitly specified, based on whether the applications have formal, semi-formal, and informal representations~\cite{mylopoulos1992conceptual,olive2007conceptual,DBLP:journals/isj/WandW93}. SQL generation (formal domain) from a relational schema provides a single correct answer that is verifiable by execution (running a query). Management decisions (low-formal domain) require weighing competing stakeholder interests with no objectively correct solution. Legal interpretations (semi-formal domain) are based on laws but constrained by text and require interpretive reasoning. We note the scope precisely: only the high-formal task operates over an explicit conceptual model (the relational schema); the semi- and low-formal tasks are reasoning tasks over progressively less formal representations of a domain. The study therefore measures how representation formality affects LLM outputs across tasks relevant to conceptual modeling, rather than how LLMs construct conceptual models per se.
 
 Formalization matters for several reasons. LLM training corpora are dominated by unstructured prose, but structured content is deliberately \emph{upsampled}: Llama~3 allocates 17\% of tokens to code and 25\% to mathematical and reasoning data, despite having a far smaller share of raw web text~\cite{grattafiori2024llama3herdmodels}. This asymmetric exposure may partly explain stronger performance on schema- and code-like tasks (tasks from domains with a high level of formalization). For the task, as the solution space expands, the model must rely less on pattern matching and more on compositional reasoning, precisely where current LLMs are the weakest~\cite{dziri2023faith}.
 
@@ -53,7 +53,7 @@ This research makes three main contributions.
   
   \item We measure output quality and consistency at all three levels using two open-weight models, discovering a variance paradox in which formal tasks produce \emph{higher}, not lower, output variability.
 
-  \item To characterize the formalization gradient, we propose a metric $F(T)$ along three dimensions and show empirically that formalization level significantly predicts both LLM output quality and variance.
+  \item We treat formalization as a \emph{continuous} dimension measured at three points rather than a categorical label: we propose a per-instance metric $F(T)$ along three dimensions and show, via a nested-model ablation, that it predicts LLM output quality \emph{beyond} the categorical level encoding.
 \end{enumerate}
 \fussy
 
@@ -62,6 +62,8 @@ This research makes three main contributions.
 \label{sec:related}
 
 Conceptual modeling research supports a progression from informal domain descriptions to explicit, formally constrained conceptual schemas. Mylopoulos notes that there are heterogeneous domains in conceptual modeling~\cite{mylopoulos1992conceptual}. Wand and Weber’s ontological analysis of modeling grammars provides a basis for evaluating the representational adequacy of conceptual modeling languages~\cite{DBLP:journals/isj/WandW93}. Olivé considers schemas to be logic-based specifications of domain knowledge, constraints, and derivation rules~\cite{olive2007conceptual}. The representational effectiveness of a conceptual model is influenced by how formal the description of a domain is. This determines what inferences can be validly drawn from a model, and the correctness guarantees available to any reasoning agent operating over it. This suggests that any reasoning system, logic-based or statistical, should perform better over more formalized representations, because formalization constrains the space of valid interpretations.
+
+A growing body of work applies LLMs to conceptual modeling itself. C\'{a}mara et al.~\cite{camara2023assessment} assess ChatGPT's ability to produce UML models and report frequent syntactic and semantic defects; Fill et al.~\cite{fill2023conceptual} survey generative-AI use across modeling notations; and H\"{a}rer~\cite{haerer2023conceptual} proposes an LLM-based interpreter that generates models in textual syntaxes such as PlantUML. Recent ER-community work continues this line~\cite{DBLP:conf/er/SilvaMCKP25,Storey2025}. These efforts share a \emph{generation} framing---prompt an LLM to \emph{produce} a model or model fragment---and evaluate ad hoc, typically on a single notation. What is missing, and what we provide, is a controlled measurement of how the \emph{formalization level of the representation} affects output quality and consistency, holding the task family fixed and using metrics that are comparable across levels. Our contribution is thus complementary: rather than proposing another generation method, we characterize where along the formalization spectrum LLM assistance is reliable, information directly useful for deciding when the above methods can be trusted.
 
 We consider LLMs for modeling. A key assumption is that LLMs acquire internal representations of the structure regularities of formalized domains, not merely memorized patterns. The most compelling evidence comes from mathematics, where LLMs have moved beyond benchmarks to what some consider to be genuine discovery: FunSearch found new solutions to the cap-set problem~\cite{romeraparedes2024funsearch}; AlphaProof, coupling a language model with reinforcement learning over Lean, reached silver-medal level at the 2024 International Mathematical Olympiad~\cite{alphaproof2024imo}; and Knuth~\cite{knuth2026claude} reports an LLM-assisted construction for Hamiltonian cycle decompositions that he had been unable to find. These successes cluster in highly formalized domains (mathematics, code generation, and formal proof), whereas open-ended tasks such as compositional generalization degrade sharply~\cite{dziri2023faith}. We term this asymmetry the \emph{formalization hypothesis}: LLM output quality degrades monotonically as task formalization decreases.
 
@@ -198,7 +200,7 @@ To evaluate our experimental results, we used quality and consistency metrics, a
 \vspace{5pt}
 \noindent
 \textit{Quality metrics.}
-A challenge is finding metrics applicable uniformly across all three levels. Domain-specific metrics (execution correctness for SQL, inter-anno\-ta\-tor agreement for legal) cannot be compared across levels. Therefore we adopt text-overlap metrics against expert gold standards. While coarser than domain-specific alternatives, this ensures that observed differences reflect the formalization gradient rather than incompatibilities among metrics. We use three recall-oriented overlap measures against the gold standard, where $W$ denotes the set of unique lowercased words---$W_{\text{gold}}$ for words from the gold standard and $W_{\text{pred}}$ for words from the LLM prediction (output):
+A challenge is finding metrics applicable uniformly across all three levels. Domain-specific metrics (execution correctness for SQL, inter-anno\-ta\-tor agreement for legal) cannot be compared across levels. We therefore adopt text-overlap metrics against expert gold standards as the \emph{cross-level} metric: while coarser than domain-specific alternatives, this ensures that observed differences reflect the formalization gradient rather than incompatibilities among metrics. For the high-formal level we \emph{additionally} report a rigorous domain-specific metric---SQL execution accuracy (Section~\ref{sec:sql-exec})---to verify that the overlap-based ranking is not an artifact of the proxy; the two agree. We use three recall-oriented overlap measures against the gold standard, where $W$ denotes the set of unique lowercased words---$W_{\text{gold}}$ for words from the gold standard and $W_{\text{pred}}$ for words from the LLM prediction (output):
 \begin{itemize}[itemsep=4pt]
   \item \textit{Word overlap}: $|W_{\text{pred}} \cap W_{\text{gold}}| / |W_{\text{gold}}|$, capturing broad topical coverage.
   \item \textit{Bigram overlap}: same ratio over word bigrams, sensitive to phrasal structure (e.g., \texttt{GROUP BY} vs.\ separate \texttt{GROUP} and \texttt{BY}; ``material breach'' vs.\ unrelated occurrences of either word).
@@ -375,6 +377,31 @@ Low  & Mistral & .229 & .396 & .290 & .205 & .353 & .259 \\
 
 With precision now in hand, H3 (length--quality mediation) is confirmed in its mechanism: greater response length raises recall-oriented scores without a corresponding gain in precision. The inter-model recall gap is largest where the length differential is largest (high-formal) and vanishes where both models produce comparably short outputs (low-formal, $0.6\times$ for both). Once irrelevant content is penalized, the verbosity premium not only disappears but inverts at the high-formal level, so Llama's higher recall reflects lexical overlap inflation rather than superior understanding.
 
+\subsection{High-Formal Execution Accuracy}
+\label{sec:sql-exec}
+
+Overlap metrics are coarsest precisely where correctness is objectively decidable---the high-formal level. We therefore complement the overlap scores with execution accuracy. We load the Northwind schema and data into an in-process analytical database (DuckDB) and execute both the gold and the predicted SQL, scoring a prediction correct when its result set exactly matches the gold's (order-insensitive unless the query specifies \texttt{ORDER BY}; the Spider-style execution-accuracy criterion). Five of the 100 gold queries use constructs outside the engine's dialect and are excluded, leaving 95 gradeable tasks ($\times K{=}5$). Table~\ref{tab:sql-exec} reports the results.
+
+\begin{table}[htbp]
+\centering
+\caption{High-formal SQL execution accuracy (exact result-set match against a populated Northwind database, Spider-style). \emph{runs} is the fraction of predictions that execute without error; \emph{exact} is computed over the 95 gradeable tasks whose gold query executes in the engine.}
+\label{tab:sql-exec}
+\setlength{\tabcolsep}{6pt}
+\begin{tabular}{llrrrr}
+\toprule
+Model & Metric & Easy & Medium & Hard & Overall \\
+\midrule
+Mistral & runs   & 97\% & 63\% & 31\% & 62\% \\
+        & exact  & 68\% & 53\% & 22\% & \textbf{49\%} \\
+\addlinespace
+Llama   & runs   & 94\% & 72\% & 55\% & 72\% \\
+        & exact  & 67\% & 62\% & 52\% & \textbf{61\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Execution accuracy corroborates the overlap-based analysis on an objective metric. Llama outperforms Mistral (61\% vs.\ 49\% exact), the same direction as the recall and $F_1$ comparisons, confirming that the model ranking is not an artifact of the overlap proxy. Two points stand out. First, accuracy is far from perfect even at the formal level: fewer than two-thirds of queries return the correct result, and 27--38\% of queries that \emph{execute} still return a wrong result set---reinforcing that formalization raises the ceiling but does not guarantee correctness, so verification remains necessary. Second, accuracy declines monotonically with query difficulty (easy $>$ medium $>$ hard for both models), an execution-grounded instance of the within-domain gradient examined next.
+
 \subsection{Robustness and Validity Checks}
 \label{sec:within-domain}
 
@@ -383,7 +410,7 @@ A potential confound in the cross-level comparison is that the three formalizati
 \vspace{5pt}
 \noindent
 \textit{High-formal (SQL).}
-The 100 SQL tasks are tagged by difficulty: easy (20 tasks), medium (55 tasks), and hard (25 tasks). These difficulty levels represent a within-domain formalization gradient: easy queries have a more constrained output space ($C(T)$ closer to 1) than hard multi-table queries where multiple valid join strategies exist. Comparing word overlap across difficulty tags, we observe a decline from $.831$ (easy) to $.798$ (medium) to $.708$ (hard), mirroring the cross-level pattern within a single domain.
+The 100 SQL tasks are tagged by difficulty: easy (20 tasks), medium (55 tasks), and hard (25 tasks). These difficulty levels represent a within-domain formalization gradient: easy queries have a more constrained output space ($C(T)$ closer to 1) than hard multi-table queries where multiple valid join strategies exist. Comparing word overlap across difficulty tags, we observe a decline from $.831$ (easy) to $.798$ (medium) to $.708$ (hard), mirroring the cross-level pattern within a single domain. Execution accuracy shows the same monotonic within-domain gradient (Table~\ref{tab:sql-exec}: Mistral $68\%\!\to\!53\%\!\to\!22\%$; Llama $67\%\!\to\!62\%\!\to\!52\%$), so the gradient is not an artifact of the overlap metric.
 
 \vspace{5pt}
 \noindent
@@ -458,7 +485,7 @@ H3 & Greater length has higher recall independent of formalization level & Suppo
 \end{tabular}
 \end{table}
 
-The refutation of H2 is important to understand: output variance \textit{decreases} rather than increases with decreasing formalization. High-formal SQL tasks produced bimodal outcomes, where outputs were either close to the gold standard or substantially incorrect, whereas low-formal management tasks produced more consistently moderate outputs even when wording differed. Formalization therefore raises expected quality while widening the variance distribution, implying that schema-driven LLM applications require verification and retry mechanisms rather than assumptions of stable correctness.
+The refutation of H2 is important to understand: output variance \textit{decreases} rather than increases with decreasing formalization. High-formal SQL tasks produced bimodal outcomes, where outputs were either close to the gold standard or substantially incorrect, whereas low-formal management tasks produced more consistently moderate outputs even when wording differed. Formalization therefore raises expected quality while widening the variance distribution, implying that schema-driven LLM applications should not assume stable correctness. Our data establish the need for verification (the bimodal outcome distribution and the $49$--$61\%$ execution accuracy) but do not by themselves establish that a particular mitigation is sufficient; verification against ground truth and, as a design heuristic warranting further study, retry-and-select strategies are therefore advisable rather than proven remedies.
 
 H1 was supported: output quality declined sharply as formalization decreased, with the dominant drop at the high-to-semi transition and a near-plateau (with a mild reversal) between semi and low. Because the same pattern appeared both across domains and within domains of differing complexity, the results suggest that formalization is associated with LLM reasoning quality beyond domain alone. This extends the conceptual modeling intuition that semantic precision improves automated reasoning from LLMs.
 
@@ -496,7 +523,7 @@ Semi-formal and low-formal gold standards were generated by Claude Sonnet 4.6 ra
 \section{Conclusion and Future Work}
 \label{sec:conclusion}
 
-This research investigated how task formalization affects LLM performance in conceptual modeling applications. Across high-formal SQL generation, semi-formal legal clause interpretation, and low-formal management decision-making, output quality improved as formalization increased; output variance, however, followed the opposite pattern. High-formal tasks produced higher variance, while low-formal tasks produced lower but more consistently moderate scores. Formalization therefore raises expected quality but does not make LLM outputs more predictable; less formalized tasks are more susceptible to context drift and normative ambiguity because their conceptual boundaries and evaluation criteria are less explicit. For conceptual modeling, formal representations can improve LLM-assisted reasoning provided that verification mechanisms accompany them.
+The authors investigated how task formalization affects LLM performance in conceptual modeling applications. Across high-formal SQL generation, semi-formal legal clause interpretation, and low-formal management decision-making, output quality improved as formalization increased; output variance, however, followed the opposite pattern. High-formal tasks produced higher variance, while low-formal tasks produced lower but more consistently moderate scores. Formalization therefore raises expected quality but does not make LLM outputs more predictable; less formalized tasks are more susceptible to context drift and normative ambiguity because their conceptual boundaries and evaluation criteria are less explicit. For conceptual modeling, formal representations can improve LLM-assisted reasoning provided that verification mechanisms accompany them.
 
 Several extensions follow directly. The dominant quality drop occurs at the high$\,\to\,$semi boundary, and both word and key-term recall show a mild reversal at the semi$\,\to\,$low transition; whether this reflects genuine non-monotonicity
 %in the gradient 

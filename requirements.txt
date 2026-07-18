@@ -25,3 +25,4 @@ scipy>=1.11.0
 tqdm>=4.66.0
 sqlparse>=0.4.4
 jupyterlab>=4.0.0
+duckdb>=1.0  # execution-based SQL evaluation (scripts/eval_sql_execution.py)
