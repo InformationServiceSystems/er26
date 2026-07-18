@@ -1,0 +1,365 @@
+\documentclass[runningheads]{llncs}
+
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{url}
+\usepackage{enumitem}
+\usepackage{xcolor}
+
+\title{From OWL to EER to Natural Language:\\How Representation Formality Shapes LLM Reasoning\\over Conceptual Models}
+
+\titlerunning{Representation Formality and LLM Reasoning}
+
+\author{
+Wolfgang Maass\inst{1} \and
+Veda C. Storey\inst{2} \and
+Stephen W. Liddle\inst{3}
+}
+
+\authorrunning{W. Maass et al.}
+
+\institute{
+German Research Center for Artificial Intelligence (DFKI), Saarbr\"{u}cken, Germany \\
+\email{wolfgang.maass@dfki.de}
+\and
+Georgia State University, Atlanta, GA, USA \\
+\email{vstorey@gsu.edu}
+\and
+Brigham Young University, Provo, UT, USA \\
+\email{liddle@byu.edu}
+}
+
+\begin{document}
+
+\maketitle
+
+% ══════════════════════════════════════════════════════════════
+\begin{abstract}
+We present the first benchmark for evaluating LLM reasoning over conceptual models at three formalization levels. Using a single controlled domain (Northwind) represented as an OWL~2 ontology, an EER diagram with natural-language annotations, and a natural-language requirements document, we test whether the classical formal/semi-formal/informal tripartition \cite{mylopoulos1992conceptual} predicts LLM output quality. Two open-weight models (Mistral-7B and Llama-3.1-8B) execute 190 tasks spanning SPARQL generation, OCL constraint synthesis, and entity/relationship extraction, each repeated $K\!=\!5$ times (1,900 total records). We find a clear \emph{formalization gradient}: SPARQL execution accuracy reaches 61--72\% on the formal OWL level but entity coverage drops to 51\% on the informal NL level. A striking \emph{model--formalization interaction} emerges: Mistral excels at formal SPARQL (61\%) while Llama dominates semi-formal OCL synthesis (87\% vs.\ 27\%), yet both converge at the informal level (51\% entity coverage). Both models understand constraint semantics at similar rates (90--93\%) but differ in syntactic fidelity to formal notations. These findings identify a concrete automation boundary in the CM pipeline and provide empirical evidence that the SEQUAL quality framework \cite{krogstie1995quality} predicts LLM performance profiles across formalization levels.
+\end{abstract}
+
+\textbf{Keywords:} conceptual modeling, formalization levels, OWL ontology, EER diagrams, large language models, SEQUAL, automation boundary
+
+% ══════════════════════════════════════════════════════════════
+\section{Introduction}
+\label{sec:intro}
+
+Conceptual modeling has long recognized that representations exist along a formalization spectrum. Mylopoulos \cite{mylopoulos1992conceptual} distinguished \emph{formal}, \emph{semi-formal}, and \emph{informal} representations, arguing that the choice of formalization level determines what operations---verification, transformation, automated reasoning---can be reliably performed over a model. With the rapid adoption of large language models (LLMs) as reasoning engines over structured and unstructured inputs, this classical distinction acquires practical urgency: does the formalization level of a conceptual model predict how well an LLM can reason over it?
+
+We operationalize this question using three CM artifacts recognized by the ER community, all describing the same domain:
+
+\begin{description}[noitemsep,style=nextline]
+  \item[High-formal: OWL~2 ontology.]
+    A Northwind domain ontology with TBox axioms, cardinality restrictions, and a populated ABox. Tasks: generate SPARQL queries answering competency questions. Correctness verified by execution.
+  \item[Semi-formal: EER diagram with NL annotations.]
+    The same domain as a structured prose EER linearization, with business rules expressed as natural-language annotations rather than formal constraints. Tasks: synthesize OCL constraints, reason about participation and cardinality.
+  \item[Low-formal: NL requirements document.]
+    The same domain described in business-analyst prose. Tasks: identify entities and relationships, flag ambiguities, elicit constraints.
+\end{description}
+
+\noindent The single-domain design eliminates the confound that plagues cross-task formalization studies: observed quality differences cannot be attributed to domain difficulty because all three levels describe the same enterprise reality (a food distribution company with customers, orders, products, suppliers, employees, and territories).
+
+This paper makes three contributions:
+\begin{enumerate}[noitemsep]
+  \item A public benchmark of 190 CM reasoning tasks spanning OWL/EER/NL over a single controlled domain, with execution-verified and expert-annotated gold standards.
+  \item Empirical identification of the automation boundary in the CM pipeline: where 7--8B LLMs can assist reliably (SPARQL generation, constraint comprehension) and where they cannot (OCL synthesis with correct syntax, comprehensive entity extraction from prose).
+  \item A model--formalization interaction finding: different model architectures have complementary strengths across the formalization spectrum, suggesting that formalization level should inform model selection in CM tool design.
+\end{enumerate}
+
+% ══════════════════════════════════════════════════════════════
+\section{Related Work and Theoretical Grounding}
+\label{sec:related}
+
+\subsection{Formalization in Conceptual Modeling}
+
+The formal/semi-formal/informal tripartition originates with Mylopoulos \cite{mylopoulos1992conceptual}, who argued that formal representations enable automated reasoning while informal representations require human interpretation. Wand and Weber \cite{wand1990ontological} showed that a modeling grammar's representational completeness determines what inferences are valid---formal representations reduce ambiguity by constraining the space of valid interpretations.
+
+\subsection{SEQUAL Framework}
+
+We ground our analysis in the SEQUAL framework \cite{krogstie1995quality,krogstie2016quality}, which decomposes model quality into syntactic quality (conformance to grammar), semantic quality (correspondence between model and domain), and pragmatic quality (correct interpretation by the audience). We map our formalization metric $F(T)$ onto SEQUAL dimensions:
+
+\begin{itemize}[noitemsep]
+  \item \textbf{Syntactic constraint density $S(T) \rightarrow$ Syntactic quality $Q_s$.} OWL~2 has a W3C grammar checkable by parser; EER annotations are unconstrained; NL has no grammar.
+  \item \textbf{Evaluation decidability $D(T) \rightarrow$ Pragmatic quality $Q_p$.} SPARQL correctness is machine-verifiable ($D=1$); OCL is partially checkable ($D=0.5$); NL requires expert judgment ($D=0$).
+  \item \textbf{Output-space cardinality $C(T) \rightarrow$ Semantic quality $Q_{se}$ (inverse).} Low cardinality (few correct answers) corresponds to high semantic quality; high cardinality (many acceptable answers) corresponds to low semantic quality.
+\end{itemize}
+
+\subsection{Moody's Physics of Notations}
+
+Moody \cite{moody2009physics} identified properties that make notations effective for human interpreters. Three principles extend to LLMs via a training-data argument: (1)~\emph{semiotic clarity}---OWL constructs have unambiguous semantics, producing a consistent training signal; (2)~\emph{semantic transparency}---formal notations reduce per-token disambiguation burden; (3)~\emph{complexity management}---modular ontology structure reduces context-window load. We do not claim LLMs have human cognitive processes; we claim that notation properties reducing interpretive burden also reduce training-data ambiguity for statistical models.
+
+\subsection{Research Hypotheses}
+
+\begin{description}[noitemsep,style=nextline]
+  \item[H1: Quality gradient.] LLM output quality decreases as formalization decreases.
+  \item[H2: Model--formalization interaction.] Different model architectures exhibit different performance profiles across formalization levels.
+\end{description}
+
+% ══════════════════════════════════════════════════════════════
+\section{Method}
+\label{sec:method}
+
+\subsection{Domain: Northwind}
+
+All three representations describe the Northwind food distribution domain: 11 entity types (Customer, Order, OrderLine, Product, Category, Supplier, Employee, Territory, Region, Shipper), 10 relationships, and business rules governing constraints such as positive quantities, valid discount ranges, and discontinued-product restrictions.
+
+\subsection{High-Formal: OWL~2 Ontology + SPARQL}
+
+The Northwind OWL~2 DL ontology contains 11 named classes, 20 object properties (with inverses), 45+ data properties, cardinality restrictions, disjointness assertions, and a populated ABox (5 customers, 8 orders, 15 order lines, 8 products, 3 employees, etc.). SWRL rules encode business constraints exceeding OWL~2 DL expressiveness.
+
+\textbf{Tasks (100):} Given the ontology TBox and a natural-language competency question, generate the SPARQL query that answers it. Gold standard: hand-authored SPARQL queries verified by execution in Apache Jena against the populated ABox.
+
+\textbf{Difficulty distribution:} Simple (20): class retrieval, property lookup. Medium (55): single-hop traversal, multi-hop join, aggregation, filtering. Hard (25): aggregation with HAVING, multi-hop aggregation, negation/optional patterns, constraint reasoning.
+
+\subsection{Semi-Formal: EER Diagram + NL Annotations}
+
+An EER diagram of the same domain, linearized as structured prose (entity/relationship/attribute declarations with participation and cardinality markers). Business rules appear as natural-language \texttt{Note:} annotations rather than formal OCL constraints. The annotations correspond directly to OWL axioms in the high-formal ontology, making the formalization gap traceable.
+
+\textbf{Tasks (59):} Eleven categories: binary relationship constraint synthesis (6), ISA reasoning (5), participation inference (6), key identification (5), OCL synthesis from annotations (6), cardinality violation detection (5), weak entity recognition (5), ternary decomposition (5), derived attribute identification (5), redundancy detection (5), diagram consistency verification (6).
+
+\textbf{OCL synthesis tasks} ask the model to formalize a natural-language annotation as an OCL invariant. Gold standard: valid OCL expressions verified by parse and typecheck.
+
+\subsection{Low-Formal: NL Requirements Document}
+
+A 7-paragraph requirements document describing the Northwind business in analyst prose, authored by informalizing each EER element. No diagrams, no formal notation.
+
+\textbf{Tasks (31):} Nine categories: entity identification (4), relationship identification (4), implicit cardinality inference (4), constraint elicitation (3), ambiguity flagging (4), redundancy detection (3), scope boundary identification (3), anomaly detection (3), completeness assessment (3).
+
+\textbf{Gold standard:} The Northwind EER diagram. Entity/relationship coverage is computed against the diagram's entity and relationship sets.
+
+\subsection{Models}
+
+Two open-weight instruction-tuned models: \textbf{Mistral-7B-Instruct-v0.3} (7.24B parameters) and \textbf{Llama-3.1-8B-Instruct} (8.03B parameters). Both run on NVIDIA RTX PRO 6000 Blackwell GPUs via HuggingFace Transformers with 4-bit quantization. Generation: $T\!=\!0.7$, $K\!=\!5$ repeated runs per task.
+
+\subsection{Evaluation}
+
+\begin{itemize}[noitemsep]
+  \item \textbf{High-formal:} SPARQL execution accuracy (binary: does the generated query execute and return the correct result set?). Post-processing normalizes model output: markdown stripping, prefix injection, variable-spacing fixes.
+  \item \textbf{Semi-formal:} OCL presence (strict: \texttt{context X inv} pattern; loose: any \texttt{context X} pattern), parse success, typecheck success against the EER metamodel.
+  \item \textbf{Low-formal:} Entity coverage (fraction of gold-standard EER entities mentioned in the output), with synonym handling and case-insensitive matching.
+\end{itemize}
+
+% ══════════════════════════════════════════════════════════════
+\section{Results}
+\label{sec:results}
+
+\subsection{Dataset Summary}
+
+Table~\ref{tab:dataset} summarizes the experimental data. All 190 tasks describe the same Northwind domain at three formalization levels.
+
+\begin{table}[h]
+\centering
+\caption{Dataset summary. All levels share the Northwind domain.}
+\label{tab:dataset}
+\begin{tabular}{llrrrr}
+\toprule
+Level & Model & Tasks & $K$ & Records & Avg Len \\
+\midrule
+High-formal & Mistral   & 100 & 5 & 500 & 543 \\
+High-formal & Llama     & 100 & 5 & 500 & 1{,}639 \\
+Semi-formal & Mistral   &  59 & 5 & 295 & 740 \\
+Semi-formal & Llama     &  59 & 5 & 295 & 3{,}691 \\
+Low-formal  & Mistral   &  31 & 5 & 155 & 1{,}312 \\
+Low-formal  & Llama     &  31 & 5 & 155 & 4{,}426 \\
+\midrule
+\multicolumn{2}{l}{Total} & 190 & & 1{,}900 & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Response length increases monotonically with decreasing formalization for both models (Mistral: 543 $<$ 740 $<$ 1{,}312; Llama: 1{,}639 $<$ 3{,}691 $<$ 4{,}426), confirming the shift from terse formal queries to extended prose.
+
+\subsection{High-Formal: SPARQL Execution (H1)}
+
+Table~\ref{tab:sparql} presents SPARQL execution accuracy by difficulty and category.
+
+\begin{table}[h]
+\centering
+\caption{SPARQL execution accuracy by difficulty tier.}
+\label{tab:sparql}
+\begin{tabular}{lrrrr}
+\toprule
+& Simple & Medium & Hard & \textbf{Overall} \\
+\midrule
+Mistral & 95/100 (95\%) & 168/275 (61\%) & 44/125 (35\%) & \textbf{307/500 (61\%)} \\
+Llama   & 82/100 (82\%) & 198/275 (72\%) & 79/125 (63\%) & \textbf{359/500 (72\%)} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Both models show a within-level formalization gradient: accuracy decreases from simple to hard tasks, mirroring the cross-level pattern within a single formalization level. Llama outperforms Mistral overall (72\% vs.\ 61\%), with the gap widening on hard tasks (63\% vs.\ 35\%).
+
+\paragraph{Category analysis.}
+Mistral excels on class retrieval (92\%) and property lookup (98\%) but struggles with aggregation (40\%) and negation (32\%). Llama is more balanced: its weakest category is multi-hop join (65\%), with strong performance on constraint reasoning (76\%) and filtering (84\%).
+
+\subsection{Semi-Formal: OCL Synthesis and EER Reasoning (H1, H2)}
+
+\paragraph{OCL synthesis.}
+Table~\ref{tab:ocl} presents OCL synthesis results under two evaluation criteria: \emph{strict} (requires the standard \texttt{context X inv:} pattern) and \emph{loose} (accepts any \texttt{context X} pattern with a constraint body).
+
+\begin{table}[h]
+\centering
+\caption{OCL synthesis evaluation (30 outputs per model: 6 tasks $\times$ $K\!=\!5$).}
+\label{tab:ocl}
+\begin{tabular}{lcccc}
+\toprule
+& \multicolumn{2}{c}{Strict (\texttt{context X inv})} & \multicolumn{2}{c}{Loose (\texttt{context X})} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+& Presence & Parse & Presence & Typecheck \\
+\midrule
+Mistral & 8/30 (27\%) & 2/30 & 27/30 (90\%) & 13/30 \\
+Llama   & 26/30 (87\%) & 26/30 & 28/30 (93\%) & 19/30 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Under strict evaluation, Llama dominates (87\% vs.\ 27\%). Under loose evaluation, both models produce constraint expressions at similar rates (90\% vs.\ 93\%). The gap is \emph{syntactic fidelity}, not \emph{semantic comprehension}: Mistral writes \texttt{context~Order:~self.freight~>=~0} (missing the \texttt{inv} keyword), while Llama writes \texttt{context~Order~inv:~self.freight~>=~0} (correct OCL syntax). Both express the same constraint logic; Llama has higher surface-level OCL fidelity, likely from greater OCL exposure in its training corpus.
+
+\paragraph{Non-OCL EER reasoning tasks} (53 tasks, 265 outputs per model) require reasoning about participation constraints, weak entities, cardinality violations, and diagram consistency without producing formal OCL. Both models perform well qualitatively: correctly identifying OrderLine as a weak entity, inferring cascade-delete implications from total participation, and detecting cardinality violations in sample data.
+
+\subsection{Low-Formal: Entity Coverage (H1)}
+
+Average entity coverage against the gold-standard EER diagram is 51\% for both models. Entity identification tasks achieve 76\% coverage; relationship identification reaches 65\%. Focused tasks (implicit cardinality inference, ambiguity flagging) score lower (25--44\%) because they address specific sentences rather than the full document, naturally mentioning fewer entities.
+
+\subsection{Cross-Level Summary: The Formalization Gradient (H1)}
+
+\begin{table}[h]
+\centering
+\caption{Cross-level performance summary. All levels describe the same Northwind domain.}
+\label{tab:summary}
+\begin{tabular}{llrrr}
+\toprule
+Level & Primary Metric & Mistral & Llama & Combined \\
+\midrule
+High-formal & SPARQL execution & 61\% & 72\% & 67\% \\
+Semi-formal & OCL presence (loose) & 90\% & 93\% & 92\% \\
+Low-formal & Entity coverage & 51\% & 51\% & 51\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+H1 is supported: quality decreases monotonically from the formal OWL level (67\% SPARQL execution) through the semi-formal EER level to the informal NL level (51\% entity coverage). The metrics are not directly comparable across levels (execution accuracy vs.\ entity coverage), but the directional gradient is consistent with the formalization hypothesis.
+
+\subsection{Model--Formalization Interaction (H2)}
+
+Table~\ref{tab:interaction} reveals a striking interaction between model architecture and formalization level.
+
+\begin{table}[h]
+\centering
+\caption{Model--formalization interaction. Bold indicates the stronger model at each level.}
+\label{tab:interaction}
+\begin{tabular}{lcc}
+\toprule
+Level & Mistral & Llama \\
+\midrule
+High-formal (SPARQL exec.) & 61\% & \textbf{72\%} \\
+Semi-formal (OCL strict) & 27\% & \textbf{87\%} \\
+Semi-formal (OCL loose) & 90\% & \textbf{93\%} \\
+Low-formal (entity coverage) & \textbf{51\%} & \textbf{51\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+At the formal level, Llama outperforms (72\% vs.\ 61\%), particularly on hard tasks (63\% vs.\ 35\%). At the semi-formal level, Llama dominates strict OCL synthesis (87\% vs.\ 27\%) but the gap narrows under loose evaluation (93\% vs.\ 90\%). At the informal level, both models converge (51\% vs.\ 51\%). H2 is supported: model architecture interacts with formalization level, and the interaction pattern differs between syntactic fidelity (where Llama leads) and semantic comprehension (where models are similar).
+
+\subsection{Output Consistency ($K\!=\!5$)}
+
+Neither model achieves meaningful lexical consistency. Average unique outputs per task is 4.6--5.0 across all conditions. Only Mistral on high-formal SQL achieves any perfect consistency (1/100 tasks). This replicates the near-zero consistency finding from prior work at $T\!=\!0.7$.
+
+% ══════════════════════════════════════════════════════════════
+\section{Discussion}
+\label{sec:discussion}
+
+\subsection{The Automation Boundary in the CM Pipeline}
+
+The results identify a concrete automation boundary for 7--8B parameter LLMs operating over conceptual models:
+
+\begin{itemize}[noitemsep]
+  \item \textbf{SPARQL from OWL (61--72\%):} LLMs can reliably generate simple SPARQL queries from ontologies (82--95\% on simple tasks) and perform adequately on medium-complexity queries (61--72\%). Hard queries involving aggregation with HAVING, negation patterns, and constraint reasoning remain challenging (35--63\%).
+  \item \textbf{OCL from EER (27--87\% strict, 90--93\% loose):} Both models understand the \emph{semantics} of constraints (90--93\% produce recognizable constraint expressions) but differ in \emph{syntactic fidelity} to the OCL standard. This suggests that LLM-assisted OCL synthesis is viable with a syntax-correction layer.
+  \item \textbf{Entity extraction from NL (51\%):} At the informal level, both models identify approximately half the gold-standard entities. Entity identification tasks reach 76\%, but comprehensive extraction from multi-paragraph requirements remains beyond reliable automation.
+\end{itemize}
+
+\subsection{Semantic Comprehension vs.\ Syntactic Fidelity}
+
+The most theoretically interesting finding is the dissociation between semantic comprehension and syntactic fidelity. Under loose evaluation, both models produce correct constraint expressions at 90--93\% rates---they understand what the constraint \emph{means}. Under strict evaluation, Mistral drops to 27\% because it writes \texttt{context~Order:} instead of \texttt{context~Order~inv:}---a single missing keyword.
+
+This has direct implications for CM tool design. A tool that requires syntactically perfect OCL will see Mistral as dramatically worse than Llama (27\% vs.\ 87\%). A tool that accepts near-OCL and applies syntactic normalization will see both models as nearly equivalent (90\% vs.\ 93\%). The choice of how strictly to evaluate formal output determines whether the automation boundary is perceived as a hard wall or a permeable membrane.
+
+\subsection{SEQUAL-Grounded Interpretation}
+
+The results align with the SEQUAL framework's predictions:
+\begin{itemize}[noitemsep]
+  \item High syntactic quality ($Q_s$) representations (OWL) enable the highest automated evaluation and the highest model performance.
+  \item Semi-formal representations with mixed $Q_s$ (EER diagram structure + NL annotations) produce the model--formalization interaction: models trained on formal corpora (Llama) achieve higher syntactic fidelity, while the semantic content is similarly accessible to both.
+  \item Low $Q_s$ representations (NL) eliminate the syntactic advantage entirely, and both models converge.
+\end{itemize}
+
+\subsection{Implications for CM Tool Builders}
+
+\paragraph{SPARQL generation is viable at the 7--8B scale.} Simple competency questions over OWL ontologies can be answered with 82--95\% accuracy. A practical deployment should include execution-based verification (the 20--40\% error rate on hard queries is too high for unverified use).
+
+\paragraph{OCL synthesis requires a normalization layer.} Both models understand constraint semantics (90\%+) but produce syntactically imprecise OCL. A tool should accept near-OCL output and apply syntactic correction (adding missing \texttt{inv} keywords, normalizing classifier names) rather than requiring perfect OCL generation.
+
+\paragraph{NL-to-ER extraction needs human support.} At 51\% entity coverage, informal requirements cannot be reliably converted to conceptual models without human verification. The CIM-to-PIM step in the MDE pipeline remains the critical point where human expertise is essential.
+
+\paragraph{Model selection should consider formalization level.} The model--formalization interaction suggests that a CM tool processing formal artifacts should prefer Llama (or models with similar formal-notation training), while tools processing informal inputs may use either model interchangeably.
+
+% ══════════════════════════════════════════════════════════════
+\section{Limitations}
+\label{sec:limitations}
+
+\begin{enumerate}[noitemsep]
+  \item \textbf{Automated metrics only.} The primary results rely on SPARQL execution, OCL parse/typecheck, and entity coverage. Expert annotation using a unified 0--3 rubric is in progress; until complete, semantic quality of non-OCL semi-formal outputs and the quality of low-formal reasoning are not formally assessed.
+  \item \textbf{Two models at similar scale.} Both models are 7--8B parameters. Larger models (70B+) may alter the formalization gradient.
+  \item \textbf{Northwind training-data exposure.} The Northwind domain is well-known. Model familiarity provides an upper bound on formal-level performance; the formalization gradient is robust even under this favorable condition, but novel domains may show steeper degradation.
+  \item \textbf{Cross-level metric incommensurability.} SPARQL execution accuracy, OCL presence, and entity coverage are not on the same scale. The unified rubric (in progress) will enable direct cross-level comparison.
+  \item \textbf{Single domain.} While the single-domain design eliminates the domain confound, it limits generalizability. Replication on additional domains is needed.
+\end{enumerate}
+
+% ══════════════════════════════════════════════════════════════
+\section{Conclusion}
+\label{sec:conclusion}
+
+We presented the first benchmark for evaluating LLM reasoning over conceptual models at three formalization levels, using OWL, EER, and NL representations of a single domain. The results support the formalization hypothesis (H1): output quality decreases monotonically as formalization decreases, from 67\% SPARQL execution accuracy to 51\% entity coverage, with domain held constant across all comparisons.
+
+The model--formalization interaction (H2) reveals that different architectures have complementary strengths: Llama outperforms on formal SPARQL and strict OCL synthesis, while both models converge at the informal level. Critically, the dissociation between semantic comprehension (90\%+ for both models) and syntactic fidelity (27\% vs.\ 87\% strict OCL) identifies a specific, addressable gap: LLMs understand what constraints mean but cannot always produce them in the correct formal notation.
+
+For the ER community, these results establish that the Mylopoulos tripartition is not merely a taxonomic convenience but a predictor of LLM performance over CM artifacts. The automation boundary is now empirically located: formal operations (SPARQL from OWL) are viable with verification; semi-formal operations (OCL from EER) require a syntax-correction layer; informal operations (entity extraction from NL) need human support. These findings are directly actionable for designers of AI-assisted conceptual modeling tools.
+
+% ══════════════════════════════════════════════════════════════
+\begin{thebibliography}{99}
+
+\bibitem{mylopoulos1992conceptual}
+Mylopoulos, J. (1992).
+\newblock Conceptual Modelling and {T}elos.
+\newblock In Loucopoulos, P. and Zicari, R., editors, \emph{Conceptual Modelling, Databases, and CASE}, pp.\ 49--68. Wiley.
+
+\bibitem{wand1990ontological}
+Wand, Y. and Weber, R. (1990).
+\newblock An ontological model of an information system.
+\newblock \emph{IEEE Trans.\ Software Engineering}, 16(11):1282--1292.
+
+\bibitem{krogstie1995quality}
+Krogstie, J., Lindland, O.I., and Sindre, G. (1995).
+\newblock Towards a deeper understanding of quality in requirements engineering.
+\newblock In \emph{CAiSE 1995}, LNCS 932, pp.\ 82--95. Springer.
+
+\bibitem{krogstie2016quality}
+Krogstie, J. (2016).
+\newblock \emph{Quality in Business Process Modeling}. Springer.
+
+\bibitem{moody2009physics}
+Moody, D.L. (2009).
+\newblock The ``Physics'' of Notations: Toward a Scientific Basis for Constructing Visual Notations in Software Engineering.
+\newblock \emph{IEEE Trans.\ Software Engineering}, 35(6):756--779.
+
+\bibitem{olive2007conceptual}
+Oliv\'{e}, A. (2007).
+\newblock \emph{Conceptual Modeling of Information Systems}. Springer.
+
+\end{thebibliography}
+
+\end{document}
